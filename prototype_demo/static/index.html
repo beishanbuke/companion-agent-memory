@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Memory Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="header-brand">
+          <div class="brand-mark"></div>
+          <div class="brand-text">
+            <h1>姜姜</h1>
+            <p>AI 记忆与对话管理系统</p>
+          </div>
+        </div>
+        
+        <div class="header-center">
+          <div class="segmented" role="tablist" aria-label="Memory toggle">
+            <button class="segment active" id="toggleOn">Memory ON</button>
+            <button class="segment" id="toggleOff">Memory OFF</button>
+          </div>
+        </div>
+        
+        <div class="header-right">
+          <button class="btn btn-secondary" id="resetSessionBtn">新会话</button>
+          <button class="btn btn-danger" id="clearMemoryBtn">清空记忆</button>
+          <div class="header-status" id="memoryStatusCard">
+            <span class="status-dot"></span>
+            <span class="status-text" id="memoryModeLabel">Memory ON</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="demo-toolbar">
+        <span class="toolbar-label">推荐演示</span>
+        <div class="demo-buttons">
+          <button class="demo-chip" data-mode="send" data-text="我叫小雨，是一名插画师，住在上海。我喜欢喝拿铁。">
+            初次认识用户
+          </button>
+          <button class="demo-chip" data-mode="send" data-text="其实我上个月搬到杭州了，现在更喜欢美式。">
+            用户信息变化
+          </button>
+          <button class="demo-chip" data-mode="resetThenSend" data-text="你还记得我现在住在哪里，喜欢喝什么吗？">
+            新会话后追问
+          </button>
+          <button class="demo-chip" data-mode="send" data-text="我现在已经再婚了。">
+            关系状态更新
+          </button>
+          <button class="demo-chip" data-mode="send" data-text="我现在不喜欢热闹场合了，更喜欢安静散步。">
+            偏好更新
+          </button>
+        </div>
+      </div>
+
+      <main class="workspace">
+        <section class="chat-panel">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <span class="panel-kicker">Chat</span>
+              <h2>对话</h2>
+            </div>
+            <div class="panel-badges">
+              <div class="situation-badge" id="situationBadge" style="display: none;">
+                <span class="situation-dot"></span>
+                <span id="situationText">casual_chat</span>
+              </div>
+              <div class="memory-badge" id="memoryUsageBadge">
+                当前回答未使用长期记忆
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-stream" id="chatStream">
+            <div class="empty-state">
+              <p>先点上面的演示按钮，或者自己输入一句话开始。</p>
+              <p>推荐先试：“我叫小雨，是一名插画师，住在上海。我喜欢喝拿铁。”</p>
+            </div>
+          </div>
+
+          <section class="voice-inline-dock" id="voiceInlineDock">
+            <div class="voice-inline-meta">
+              <div class="panel-title-group">
+                <span class="panel-kicker">Realtime Voice</span>
+                <p class="voice-inline-title">语音连接</p>
+              </div>
+              <div class="voice-inline-actions">
+                <button class="btn btn-secondary" id="connectVoiceBtn" type="button">Connect</button>
+                <button class="btn btn-secondary" id="disconnectVoiceBtn" type="button">Disconnect</button>
+                <button class="btn btn-ghost" id="refreshVoiceBtn" type="button">刷新</button>
+              </div>
+            </div>
+            <p class="voice-inline-status" id="voiceInlineStatus">
+              正在检查 realtime voice 服务状态...
+            </p>
+            <div class="voice-inline-frame-shell" id="voiceInlineFrameShell">
+              <div class="voice-connection-card">
+                <div class="voice-pill-row">
+                  <span class="voice-pill" id="voiceServicePill">Service unknown</span>
+                  <span class="voice-pill" id="voiceSessionPill">Session idle</span>
+                </div>
+                <audio id="voiceRemoteAudio" autoplay playsinline></audio>
+              </div>
+            </div>
+          </section>
+
+          <div class="composer">
+            <div class="composer-message">
+              <label class="composer-field-label" for="messageInput">对话输入</label>
+              <textarea
+                id="messageInput"
+                rows="3"
+                placeholder="输入一句话，看看系统会不会记住你..."
+              ></textarea>
+            </div>
+
+            <div class="composer-actions">
+              <button class="btn btn-ghost voice-button" id="micBtn" type="button">Mic</button>
+              <button class="btn btn-ghost" id="speechToggleBtn" type="button">语音播报：开</button>
+              <button class="btn btn-primary send-button" id="sendBtn">发送</button>
+            </div>
+          </div>
+          <p class="composer-hint" id="voiceInlineHint">
+            内联语音模式：点 Mic 说话，识别后的文字会直接进入当前聊天流。建议使用 Chrome/Edge。
+          </p>
+        </section>
+
+        <aside class="memory-panel" id="memoryPanel">
+          <section class="character-selector-section" id="characterSelectorSection">
+            <div class="panel-title-group">
+              <span class="panel-kicker">Character</span>
+              <h2>对话角色</h2>
+            </div>
+            <div class="character-list" id="characterList">
+              <p class="muted">正在加载角色列表...</p>
+            </div>
+          </section>
+
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <span class="panel-kicker">Live Memory</span>
+              <h2>记忆看板</h2>
+            </div>
+            <div class="memory-panel-actions">
+              <button class="btn btn-ghost" id="toggleMemoryImportBtn" type="button">手动导入</button>
+              <span class="panel-note" id="panelModeHint">当前会读写长期记忆</span>
+            </div>
+          </div>
+
+          <section class="runtime-card-status" id="voiceRuntimeCard">
+            <h3>语音链路生效角色</h3>
+            <p class="runtime-card-line"><strong>实际生效：</strong><span id="runtimeCardApplied">加载中...</span></p>
+            <p class="runtime-card-line"><strong>当前选中：</strong><span id="runtimeCardSelected">加载中...</span></p>
+            <p class="runtime-card-line"><strong>同步状态：</strong><span id="runtimeCardSync">未知</span></p>
+          </section>
+
+          <section class="memory-import card-surface is-hidden" id="memoryImportPanel">
+            <div class="memory-import-header">
+              <div class="panel-title-group">
+                <span class="panel-kicker">Import</span>
+                <h3>手动导入记忆</h3>
+              </div>
+              <button class="btn btn-ghost" id="closeMemoryImportBtn" type="button">收起</button>
+            </div>
+            <p class="memory-import-copy">
+              直接输入一段用户事实或偏好，系统会按正常 memory 抽取逻辑写入长期记忆，不需要先走聊天。下方 Persona、Preference、Recent Events 卡片支持逐条删除。
+            </p>
+            <textarea
+              id="memoryImportInput"
+              rows="5"
+              placeholder="例如：我叫小雨，现在住在杭州，更喜欢喝美式，周末喜欢安静散步。"
+            ></textarea>
+            <div class="memory-import-actions">
+              <button class="btn btn-primary" id="submitMemoryImportBtn" type="button">导入到长期记忆</button>
+            </div>
+            <p class="memory-import-status" id="memoryImportStatus">支持一次输入多句，系统会统一抽取并写入。</p>
+          </section>
+
+          <section class="spotlight" id="updateSpotlight">
+            <h3>刚刚发生的记忆变化</h3>
+            <div class="spotlight-body" id="updateList">
+              <p class="muted">还没有新的记忆变化。</p>
+            </div>
+          </section>
+
+          <section class="memory-section">
+            <h3>Persona</h3>
+            <div class="memory-grid" id="personaGrid"></div>
+          </section>
+
+          <section class="memory-section">
+            <h3>Preference</h3>
+            <div class="memory-grid" id="preferenceGrid"></div>
+          </section>
+
+          <section class="memory-section">
+            <h3>Recent Events</h3>
+            <div class="timeline" id="eventTimeline"></div>
+          </section>
+
+          <section class="memory-section">
+            <h3>Conflict Updates</h3>
+            <div class="timeline" id="conflictTimeline"></div>
+          </section>
+
+          <section class="memory-section">
+            <h3>本次回答参考了哪些长期记忆</h3>
+            <pre class="memory-preview" id="memoryPreview">暂无</pre>
+          </section>
+        </aside>
+      </main>
+
+      <section class="character-card-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <span class="panel-kicker">Character Card</span>
+            <h2>新建角色卡</h2>
+          </div>
+        </div>
+        <section class="card-surface">
+          <div class="character-editor-layout single-column">
+            <div class="character-form-area">
+              <div class="character-form-grid">
+                <div class="character-form-item">
+                  <label class="character-form-label" for="characterCardNameInput">角色命名</label>
+                  <input id="characterCardNameInput" type="text" placeholder="例如：嘴硬心软粤语大哥" />
+                </div>
+
+                <div class="character-form-item">
+                  <label class="character-form-label" for="characterCardVoiceSelect">音色选择</label>
+                  <select id="characterCardVoiceSelect"></select>
+                </div>
+
+                <div class="character-form-item character-form-item-full">
+                  <label class="character-form-label" for="characterCardDescriptionInput">角色描述</label>
+                  <textarea
+                    id="characterCardDescriptionInput"
+                    rows="4"
+                    placeholder="描述角色说话风格、性格、语气、互动方式。系统会自动在前面加入统一前置说明。"
+                  ></textarea>
+                </div>
+              </div>
+
+              <div class="memory-import-actions">
+                <button class="btn btn-primary" id="saveCharacterCardBtn" type="button">保存并生成角色卡</button>
+              </div>
+            </div>
+
+            <div class="character-preview-area">
+              <div class="panel-title-group preview-title">
+                <span class="panel-kicker">Preview</span>
+                <h3>卡片预览</h3>
+              </div>
+              <div class="character-card-visual" id="characterCardVisual">
+                <div class="card-visual-header">
+                  <div class="card-visual-avatar" id="cardVisualAvatar">
+                    <span id="cardVisualAvatarText">?</span>
+                  </div>
+                  <div class="card-visual-meta">
+                    <div class="card-visual-name" id="cardVisualName">未命名角色</div>
+                    <div class="card-visual-voice" id="cardVisualVoice">选择音色</div>
+                  </div>
+                </div>
+                <div class="card-visual-divider"></div>
+                <div class="card-visual-desc" id="cardVisualDesc">
+                  暂无描述
+                </div>
+                <div class="card-visual-footer">
+                  <span class="card-visual-badge">AI Character</span>
+                  <span class="card-visual-id" id="cardVisualId">ID: —</span>
+                </div>
+              </div>
+              <div class="preview-actions">
+                <button class="btn btn-secondary" id="downloadCardBtn" type="button">下载卡片图片</button>
+                <canvas id="cardCanvas" width="600" height="340" style="display:none;"></canvas>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

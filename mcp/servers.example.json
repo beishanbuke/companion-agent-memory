@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "fetch": {
+      "source": "github:modelcontextprotocol/servers",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"]
+    },
+    "time": {
+      "source": "github:modelcontextprotocol/servers",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-time"]
+    },
+    "software-social-local": {
+      "source": "local:quickstart/mcp/software_server.py",
+      "command": "python",
+      "args": ["mcp/software_server.py"]
+    },
+    "weather-local": {
+      "source": "local:quickstart/mcp/weather_server.py",
+      "command": "python",
+      "args": ["mcp/weather_server.py"]
+    }
+  }
+}
