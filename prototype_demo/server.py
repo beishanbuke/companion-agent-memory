@@ -1294,7 +1294,7 @@ class DemoSession:
             "updates": updates,
             "active_card_id": active_card.get("id"),
             "active_card_name": active_card.get("name"),
-            "ncp": ncp_payload,
+            "ncp": None,
             "companion": {
                 "situation": companion_result.situation,
                 "situation_confidence": companion_result.situation_confidence,
@@ -1392,7 +1392,7 @@ class DemoSession:
                 "updates": updates,
                 "active_card_id": active_card.get("id"),
                 "active_card_name": active_card.get("name"),
-                "ncp": ncp_payload,
+                "ncp": None,
                 "companion": {
                     "situation": companion_result.situation,
                     "situation_confidence": companion_result.situation_confidence,
