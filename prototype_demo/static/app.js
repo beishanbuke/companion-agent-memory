@@ -703,17 +703,34 @@ async function speakReply(text) {
 function splitSpeakableChunks(text, flush = false) {
   const chunks = [];
   let cursor = 0;
-  const punctuation = /[。！？!?；;：:\n]/;
+  // Primary split points: sentence endings
+  const sentenceEnd = /[。！？!?；;：:\n]/;
+  // Secondary split points: commas (used when chunk gets too long)
+  const comma = /[，、]/;
+  const MIN_CHUNK_LENGTH = 12;
 
   for (let index = 0; index < text.length; index += 1) {
-    if (!punctuation.test(text[index])) {
+    const char = text[index];
+    const currentLength = index - cursor + 1;
+
+    // Always split at sentence endings
+    if (sentenceEnd.test(char)) {
+      const sentence = text.slice(cursor, index + 1).trim();
+      if (sentence) {
+        chunks.push(sentence);
+      }
+      cursor = index + 1;
       continue;
     }
-    const sentence = text.slice(cursor, index + 1).trim();
-    if (sentence) {
-      chunks.push(sentence);
+
+    // Split at commas only if chunk is long enough (prevents cutting too early)
+    if (comma.test(char) && currentLength >= MIN_CHUNK_LENGTH) {
+      const sentence = text.slice(cursor, index + 1).trim();
+      if (sentence) {
+        chunks.push(sentence);
+      }
+      cursor = index + 1;
     }
-    cursor = index + 1;
   }
 
   let rest = text.slice(cursor);
@@ -900,7 +917,7 @@ function renderCharacterList() {
     const fullDesc = descLines.slice(1).join("\n").trim() || "暂无详细描述";
     
     return `
-      <div class="character-list-item ${isActive ? "is-active" : ""}" data-card-id="${escapeHtml(card.id)}" data-card-name="${escapeHtml(card.name || card.id)}">
+      <div class="character-list-item ${isActive ? "is-active is-expanded" : ""}" data-card-id="${escapeHtml(card.id)}" data-card-name="${escapeHtml(card.name || card.id)}">
         <div class="character-list-main">
           <div class="character-list-avatar" style="${escapeHtml(avatarStyle)}">${escapeHtml(initials)}</div>
           <div class="character-list-info">
@@ -1800,7 +1817,7 @@ characterList?.addEventListener("click", (event) => {
     });
     return;
   }
-  
+
   const deleteBtn = event.target.closest("[data-delete-card-id]");
   if (deleteBtn) {
     const cardId = deleteBtn.dataset.deleteCardId;
@@ -1808,17 +1825,38 @@ characterList?.addEventListener("click", (event) => {
     deleteCharacterCard(cardId, cardName);
     return;
   }
-  
+
   // Click on the item itself to toggle expand/collapse
   const item = event.target.closest(".character-list-item");
   if (item && !event.target.closest(".character-list-actions")) {
-    const isExpanded = item.classList.contains("is-expanded");
-    // Collapse all other items
-    document.querySelectorAll(".character-list-item.is-expanded").forEach((el) => {
-      if (el !== item) el.classList.remove("is-expanded");
-    });
-    // Toggle current
-    item.classList.toggle("is-expanded", !isExpanded);
+    const cardId = item.dataset.cardId;
+    const isActive = cardId === state.activeCharacterCardId;
+
+    // Double-click to switch character (only for non-active items)
+    if (item.dataset.clickCount === "1" && !isActive) {
+      // This is a double-click
+      clearTimeout(item.dataset.clickTimer);
+      item.dataset.clickCount = "0";
+      applyCharacterCardSelection(cardId).catch((error) => {
+        if (characterCardStatus) {
+          characterCardStatus.textContent = `应用失败：${error.message}`;
+        }
+      });
+      return;
+    }
+
+    // Single-click: expand/collapse
+    item.dataset.clickCount = "1";
+    item.dataset.clickTimer = setTimeout(() => {
+      item.dataset.clickCount = "0";
+      const isExpanded = item.classList.contains("is-expanded");
+      // Collapse all other items
+      document.querySelectorAll(".character-list-item.is-expanded").forEach((el) => {
+        if (el !== item) el.classList.remove("is-expanded");
+      });
+      // Toggle current
+      item.classList.toggle("is-expanded", !isExpanded);
+    }, 250);
     return;
   }
 });
