@@ -758,7 +758,7 @@ async function connectVoice() {
   }
 
   state.voiceConnecting = true;
-  updateVoicePills();
+  updateVoiceIndicator();
   setMicUi();
   setVoiceStatus("正在请求麦克风权限...");
 
@@ -768,7 +768,7 @@ async function connectVoice() {
     setLocalMicEnabled(true);
     const session = await createVoiceSession();
     state.voiceSessionId = session.sessionId || "";
-    updateVoicePills();
+    updateVoiceIndicator();
 
     const iceServers = session.iceConfig?.iceServers || [];
     voicePeerConnection = setupVoicePeerConnection(iceServers);
@@ -808,10 +808,10 @@ async function connectVoice() {
   } catch (error) {
     await disconnectVoice({ keepStatus: true });
     setVoiceStatus(`语音连接失败：${error.message}`);
-    voiceInlineHint.textContent = `语音连接失败：${error.message}`;
+    console.error("Voice connection failed:", error);
   } finally {
     state.voiceConnecting = false;
-    updateVoicePills();
+    updateVoiceIndicator();
     setMicUi();
   }
 }
