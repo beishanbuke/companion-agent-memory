@@ -70,6 +70,7 @@ const characterList = document.getElementById("characterList");
 const characterCardNameInput = document.getElementById("characterCardNameInput");
 const characterCardDescriptionInput = document.getElementById("characterCardDescriptionInput");
 const characterCardVoiceSelect = document.getElementById("characterCardVoiceSelect");
+const quickVoiceSelect = document.getElementById("quickVoiceSelect");
 const saveCharacterCardBtn = document.getElementById("saveCharacterCardBtn");
 
 // Character Card Visual Elements
