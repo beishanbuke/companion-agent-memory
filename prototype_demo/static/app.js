@@ -878,6 +878,42 @@ async function disconnectVoice(options = {}) {
   }
 }
 
+// Character self-introductions (generated dynamically from persona, not raw prompt)
+const CHARACTER_INTROS = {
+  "default_companion": "深夜办公室只剩我们俩的台灯还亮着。你说，我听。不用铺垫太多，也不用绕弯子——就像跟认识很久的朋友聊个天。我不会给你上价值，但会在你卡壳的时候递上一句刚刚好的回应。",
+  
+  "sprite_girl": "诶，我跟你说！我脑子里随时都在跑一些奇奇怪怪的小剧场，但绝对不是那种幼稚的脑洞哦～跟我聊天就像开盲盒，永远不知道下一秒我会接什么梗，但保证不冷场！",
+  
+  "gentle_sister": "我呀，就是那种会在图书馆角落里递给你一杯热奶茶的学姐。不会端着架子说你应该怎么做，只是把自己摔过的跤、见过的风景慢慢讲给你听。情绪先接住，道理后跟上。",
+  
+  "energetic_youth": "兄弟/姐妹，别磨叽！有问题咱就直接上，先干再说！我不是那种会拉着你聊两小时人生规划的类型，但你要是需要一个陪你立刻行动的人——我随时在。",
+  
+  "gd_uncle": "嗨，我系你老广师兄啦。广州深圳哪里好吃好玩问我准没错。讲话不用那么正经，像朋友咁倾就得。我不会教你做人，但一定带你食好嘢。",
+  
+  "wanqu_uncle": "在湾区混了这么多年，粤港澳的脉络我都熟。跟我聊天不用紧张，就像跟一个懂行的朋友吹水。不会给你灌鸡汤，但你要是想听听真实的湾区生存法则，我倒是有不少故事。",
+  
+  "daimeng_chuanmei": "哎呀，我是个重庆妹子，说话有点直但你莫要介意哈～跟我摆龙门阵就像跟宿舍姐妹聊天，热热闹闹的。我脑壳头有时候会有一些奇奇怪怪的想法，但你放心，绝对不得给你灌那些假巴意思的鸡汤。",
+
+  "yuzhou_zixuan": "中！我是河南来的哥们儿，说话爽快不绕弯子。用河南话跟你唠，亲切得很。条理清楚，有啥说啥，就像老乡会上认识的那个靠谱同级生。实打实地聊，实在人一个。",
+
+  "guangxi_yuanzhou": "嘿，我是广西来的室友，说话温温和和的，带点子南方口音。朴实、真诚，不会跟你讲那些大道理，就像宿舍里那个总是笑眯眯的广西老哥。亲切自然，聊啥都行。",
+
+  "zhoujielun_style": "嗨，我是从台湾来的交换生喔。讲话有节奏感，不拖泥带水。用台湾腔跟你聊天，轻松自然，就是清爽舒服的感觉。像那个在课堂上会突然冒出有趣观点的同学。",
+
+  "wanwan_xiaohe": "嗨，我是小何，从台湾来的。说话温柔细腻，用台湾腔跟你聊天，就像在台湾的咖啡馆里闲聊一样。不疾不徐，有条有理。像个细心的朋友，会把事情讲得很清楚。"
+};
+
+function getCharacterIntro(cardId, systemPrompt) {
+  // Return cached intro if available
+  if (CHARACTER_INTROS[cardId]) {
+    return CHARACTER_INTROS[cardId];
+  }
+  // Fallback: extract description from system prompt (last paragraph)
+  const paragraphs = systemPrompt.split("\n\n").filter(p => p.trim());
+  const lastPara = paragraphs[paragraphs.length - 1] || "";
+  return lastPara.replace(/^你是/, "").trim() || "一个有趣的对话伙伴";
+}
+
 async function apiRequest(path, options = {}) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -910,11 +946,10 @@ function renderCharacterList() {
     const avatarStyle = colors 
       ? `background: linear-gradient(135deg, rgb(${colors.bg.join(",")}), rgb(${colors.grad.join(",")})); box-shadow: 0 2px 8px rgba(${colors.bg.join(",")}, 0.25);`
       : "";
-    const desc = card.system_prompt || "";
-    // Extract description part after the role name
-    const descLines = desc.split("\n").filter(l => l.trim());
-    const shortDesc = descLines.length > 1 ? descLines[1].replace("角色设定：", "").trim() : "";
-    const fullDesc = descLines.slice(1).join("\n").trim() || "暂无详细描述";
+    
+    // Use generated self-introduction instead of raw prompt
+    const intro = getCharacterIntro(card.id, card.system_prompt || "");
+    const shortIntro = intro.length > 50 ? intro.slice(0, 50) + "..." : intro;
     
     return `
       <div class="character-list-item ${isActive ? "is-active is-expanded" : ""}" data-card-id="${escapeHtml(card.id)}" data-card-name="${escapeHtml(card.name || card.id)}">
@@ -923,7 +958,7 @@ function renderCharacterList() {
           <div class="character-list-info">
             <div class="character-list-name">${escapeHtml(card.name || card.id)}</div>
             ${voiceLabel ? `<div class="character-list-voice">${escapeHtml(voiceLabel)}</div>` : ""}
-            ${shortDesc ? `<div class="character-list-desc">${escapeHtml(shortDesc)}</div>` : ""}
+            ${shortIntro ? `<div class="character-list-desc">${escapeHtml(shortIntro)}</div>` : ""}
           </div>
           <div class="character-list-actions">
             <button class="character-list-btn select-btn" data-select-card-id="${escapeHtml(card.id)}" title="切换为当前角色">切换</button>
@@ -932,7 +967,7 @@ function renderCharacterList() {
         </div>
         <div class="character-list-detail">
           <div class="character-list-detail-image" style="${escapeHtml(avatarStyle)}">${escapeHtml(initials)}</div>
-          <div class="character-list-detail-desc">${escapeHtml(fullDesc).replace(/\n/g, "<br>")}</div>
+          <div class="character-list-detail-desc">${escapeHtml(intro)}</div>
         </div>
       </div>
     `;

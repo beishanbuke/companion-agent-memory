@@ -1130,13 +1130,22 @@ button:disabled,
 
 /* Character Selector in Memory Panel */
 .character-selector-section {
-  padding: var(--space-4) 0;
+  padding: var(--space-4) var(--space-5);
   margin-bottom: var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .character-selector-section .panel-title-group {
   margin-bottom: var(--space-3);
+}
+
+.character-selector-section h2 {
+  font-family: var(--font-display), 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--text-primary);
 }
 
 .character-list {
