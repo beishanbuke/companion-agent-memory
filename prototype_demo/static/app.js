@@ -52,17 +52,11 @@ const eventTimeline = document.getElementById("eventTimeline");
 const conflictTimeline = document.getElementById("conflictTimeline");
 const memoryPreview = document.getElementById("memoryPreview");
 const voiceInlineDock = document.getElementById("voiceInlineDock");
-const voiceInlineStatus = document.getElementById("voiceInlineStatus");
 const voiceInlineFrameShell = document.getElementById("voiceInlineFrameShell");
-const connectVoiceBtn = document.getElementById("connectVoiceBtn");
-const disconnectVoiceBtn = document.getElementById("disconnectVoiceBtn");
-const refreshVoiceBtn = document.getElementById("refreshVoiceBtn");
-const voiceServicePill = document.getElementById("voiceServicePill");
-const voiceSessionPill = document.getElementById("voiceSessionPill");
+const voiceStatusIndicator = document.getElementById("voiceStatusIndicator");
 const voiceRemoteAudio = document.getElementById("voiceRemoteAudio");
 const micBtn = document.getElementById("micBtn");
 const speechToggleBtn = document.getElementById("speechToggleBtn");
-const voiceInlineHint = document.getElementById("voiceInlineHint");
 const characterCardSelect = document.getElementById("characterCardSelect");
 const applyCharacterCardBtn = document.getElementById("applyCharacterCardBtn");
 const characterCardStatus = document.getElementById("characterCardStatus");
@@ -409,28 +403,21 @@ function startVoicePing() {
   }, 1000);
 }
 
-function updateVoicePills() {
-  voiceServicePill.textContent = state.voiceAvailable ? "Service online" : "Service offline";
-  voiceServicePill.className = `voice-pill ${state.voiceAvailable ? "is-online" : "is-offline"}`;
-
-  let sessionLabel = "Session idle";
-  let sessionClass = "";
-  if (state.voiceConnecting) {
-    sessionLabel = "Connecting";
-    sessionClass = "is-busy";
-  } else if (state.voiceConnected) {
-    sessionLabel = "Connected";
-    sessionClass = "is-online";
-  } else if (state.voiceSessionId) {
-    sessionLabel = "Session created";
-    sessionClass = "is-busy";
+function updateVoiceIndicator() {
+  if (!voiceStatusIndicator) return;
+  
+  if (state.voiceConnected) {
+    voiceStatusIndicator.classList.add("is-connected");
+    voiceStatusIndicator.title = "语音已连接";
+  } else {
+    voiceStatusIndicator.classList.remove("is-connected");
+    voiceStatusIndicator.title = state.voiceAvailable ? "语音服务在线，点击连接" : "语音服务离线";
   }
-  voiceSessionPill.textContent = sessionLabel;
-  voiceSessionPill.className = `voice-pill ${sessionClass}`.trim();
 }
 
 function setVoiceStatus(message) {
-  voiceInlineStatus.textContent = message;
+  // Status now shown via indicator only
+  console.log("Voice status:", message);
 }
 
 function resetVoiceState() {
@@ -438,7 +425,7 @@ function resetVoiceState() {
   state.voiceConnected = false;
   state.voiceSessionId = "";
   state.voicePcId = "";
-  updateVoicePills();
+  updateVoiceIndicator();
 }
 
 async function waitForIceGatheringComplete(pc, timeoutMs = 8000) {
@@ -522,20 +509,15 @@ function setupVoicePeerConnection(iceServers) {
     if (stateName === "connected") {
       state.voiceConnecting = false;
       state.voiceConnected = true;
-      updateVoicePills();
-      setVoiceStatus("语音已连接。现在可以直接说话，实时转写会同步到聊天流。");
-      voiceInlineHint.textContent = "语音已连接。直接说话即可；再次点 Disconnect 可断开。";
+      updateVoiceIndicator();
+      setMicUi();
       return;
     }
     if (stateName === "connecting") {
-      setVoiceStatus("正在建立语音连接...");
       return;
     }
     if (stateName === "failed" || stateName === "disconnected" || stateName === "closed") {
       disconnectVoice({ keepStatus: stateName === "closed" }).catch(() => {});
-      if (stateName !== "closed") {
-        setVoiceStatus(`语音连接已${stateName === "failed" ? "失败" : "断开"}。`);
-      }
     }
   });
 
@@ -588,9 +570,15 @@ function setSpeechToggleUi() {
   if (!speechToggleBtn) {
     return;
   }
-  speechToggleBtn.textContent = state.speechEnabled ? "语音播报：开" : "语音播报：关";
   speechToggleBtn.classList.toggle("is-active", state.speechEnabled);
+  speechToggleBtn.classList.toggle("is-muted", !state.speechEnabled);
   speechToggleBtn.disabled = state.pending;
+  
+  // Toggle icon visibility
+  const iconOn = speechToggleBtn.querySelector(".icon-voice-on");
+  const iconOff = speechToggleBtn.querySelector(".icon-voice-off");
+  if (iconOn) iconOn.style.display = state.speechEnabled ? "block" : "none";
+  if (iconOff) iconOff.style.display = state.speechEnabled ? "none" : "block";
 }
 
 function setMicUi() {
@@ -598,34 +586,24 @@ function setMicUi() {
     return;
   }
 
-  micBtn.classList.toggle("is-listening", state.voiceConnecting || state.voiceConnected);
+  // Update mic icon state
+  const isListening = state.voiceConnecting || state.voiceConnected;
+  const isMuted = state.voiceConnected && !state.micEnabled;
+  micBtn.classList.toggle("is-active", isListening);
+  micBtn.classList.toggle("is-muted", isMuted);
   micBtn.disabled = state.pending || state.applyingVoiceChoice || !state.voiceAvailable || state.voiceConnecting;
 
-  if (state.voiceConnecting) {
-    micBtn.textContent = "连接中";
-  } else if (state.voiceConnected) {
-    micBtn.textContent = state.micEnabled ? "关麦" : "开麦";
-  } else {
-    micBtn.textContent = "开麦";
-  }
+  // Toggle icon visibility
+  const iconOn = micBtn.querySelector(".icon-mic-on");
+  const iconOff = micBtn.querySelector(".icon-mic-off");
+  if (iconOn) iconOn.style.display = isMuted ? "none" : "block";
+  if (iconOff) iconOff.style.display = isMuted ? "block" : "none";
 
   if (quickVoiceSelect) {
     quickVoiceSelect.disabled = state.pending || state.applyingVoiceChoice;
   }
 
-  connectVoiceBtn.disabled = !state.voiceAvailable || state.voiceConnecting || state.voiceConnected;
-  disconnectVoiceBtn.disabled = !state.voiceConnected && !state.voiceConnecting;
-
-  if (state.voiceAvailable) {
-    voiceInlineHint.textContent =
-      state.voiceConnected
-        ? "语音已连接。直接说话即可；回复会语音播报，转写会同步进聊天流。"
-        : "实时语音已在线。点击 Mic 或 Connect 建立连接。";
-    return;
-  }
-
-  voiceInlineHint.textContent =
-    "实时语音服务当前离线。先在 quickstart 根目录运行 prototype_demo/voice_bot.py，再刷新页面。";
+  updateVoiceIndicator();
 }
 
 async function synthesizeReplyAudio(text) {
@@ -1456,22 +1434,15 @@ function renderVoiceStatus(payload) {
   state.voiceProxyUrl = payload.proxy_client_url || "";
 
   if (state.voiceAvailable && state.voiceClientUrl) {
-    setVoiceStatus(
-      state.voiceConnected
-        ? "语音已连接。直接说话即可；实时转写和语音回复都会同步工作。"
-        : "realtime voice 服务已在线。点击 Connect 或 Mic 建立语音连接。"
-    );
-    updateVoicePills();
+    updateVoiceIndicator();
     setMicUi();
+    // Auto-connect on first availability
+    tryAutoConnectVoice();
     return;
   }
 
   disconnectVoice({ keepStatus: true }).catch(() => {});
-  setVoiceStatus(
-    `realtime voice 服务离线。${payload.run_hint || "先启动 prototype_demo/voice_bot.py。"}`
-      .trim()
-  );
-  updateVoicePills();
+  updateVoiceIndicator();
   setMicUi();
 }
 
@@ -1796,7 +1767,6 @@ document.querySelectorAll(".demo-chip").forEach((button) => {
 
 micBtn.addEventListener("click", async () => {
   if (!state.voiceAvailable) {
-    voiceInlineHint.textContent = "实时语音服务当前不可用。";
     return;
   }
 
@@ -1804,15 +1774,12 @@ micBtn.addEventListener("click", async () => {
     if (!state.voiceConnected) {
       await connectVoice();
       setLocalMicEnabled(true);
-      setVoiceStatus("语音已连接，麦克风已开启。");
     } else {
       setLocalMicEnabled(!state.micEnabled);
-      setVoiceStatus(state.micEnabled ? "麦克风已开启。" : "麦克风已关闭（语音连接保持）。");
     }
     setMicUi();
   } catch (error) {
-    setVoiceStatus(`语音连接失败：${error.message}`);
-    voiceInlineHint.textContent = `语音连接失败：${error.message}`;
+    console.error("Voice connection failed:", error);
   }
 });
 
@@ -1825,19 +1792,22 @@ speechToggleBtn?.addEventListener("click", () => {
   setSpeechToggleUi();
 });
 
-connectVoiceBtn.addEventListener("click", () => {
-  connectVoice().catch(() => {});
-});
+// Auto-connect voice when service is available
+let autoConnectAttempted = false;
 
-disconnectVoiceBtn.addEventListener("click", () => {
-  disconnectVoice().catch(() => {});
-});
-
-refreshVoiceBtn.addEventListener("click", () => {
-  refreshVoiceStatus().catch(() => {
-    voiceInlineStatus.textContent = "语音状态刷新失败。请稍后再试。";
-  });
-});
+async function tryAutoConnectVoice() {
+  if (autoConnectAttempted || !state.voiceAvailable || state.voiceConnected || state.voiceConnecting) {
+    return;
+  }
+  autoConnectAttempted = true;
+  try {
+    await connectVoice();
+    setLocalMicEnabled(true);
+  } catch (error) {
+    console.error("Auto-connect voice failed:", error);
+    autoConnectAttempted = false;
+  }
+}
 
 // Character list event delegation
 characterList?.addEventListener("click", (event) => {
@@ -1929,7 +1899,7 @@ refreshVoiceStatus().catch(() => {
   setMicUi();
 });
 state.speechEnabled = loadSpeechEnabledPreference();
-updateVoicePills();
+updateVoiceIndicator();
 setMemoryImportUi();
 setSpeechToggleUi();
 updateCharacterCardPreview();

@@ -90,20 +90,11 @@
                 <p class="voice-inline-title">语音连接</p>
               </div>
               <div class="voice-inline-actions">
-                <button class="btn btn-secondary" id="connectVoiceBtn" type="button">Connect</button>
-                <button class="btn btn-secondary" id="disconnectVoiceBtn" type="button">Disconnect</button>
-                <button class="btn btn-ghost" id="refreshVoiceBtn" type="button">刷新</button>
+                <div class="voice-status-indicator" id="voiceStatusIndicator" title="语音连接状态"></div>
               </div>
             </div>
-            <p class="voice-inline-status" id="voiceInlineStatus">
-              正在检查 realtime voice 服务状态...
-            </p>
             <div class="voice-inline-frame-shell" id="voiceInlineFrameShell">
               <div class="voice-connection-card">
-                <div class="voice-pill-row">
-                  <span class="voice-pill" id="voiceServicePill">Service unknown</span>
-                  <span class="voice-pill" id="voiceSessionPill">Session idle</span>
-                </div>
                 <audio id="voiceRemoteAudio" autoplay playsinline></audio>
               </div>
             </div>
@@ -120,14 +111,35 @@
             </div>
 
             <div class="composer-actions">
-              <button class="btn btn-ghost voice-button" id="micBtn" type="button">Mic</button>
-              <button class="btn btn-ghost" id="speechToggleBtn" type="button">语音播报：开</button>
+              <button class="btn btn-ghost voice-icon-btn" id="micBtn" type="button" title="开关麦克风">
+                <svg class="icon-mic-on" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <line x1="12" y1="19" x2="12" y2="23"></line>
+                  <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+                <svg class="icon-mic-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <line x1="12" y1="19" x2="12" y2="23"></line>
+                  <line x1="8" y1="23" x2="16" y2="23"></line>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              </button>
+              <button class="btn btn-ghost voice-icon-btn" id="speechToggleBtn" type="button" title="开关语音播报">
+                <svg class="icon-voice-on" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                </svg>
+                <svg class="icon-voice-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <line x1="23" y1="9" x2="17" y2="15"></line>
+                  <line x1="17" y1="9" x2="23" y2="15"></line>
+                </svg>
+              </button>
               <button class="btn btn-primary send-button" id="sendBtn">发送</button>
             </div>
           </div>
-          <p class="composer-hint" id="voiceInlineHint">
-            内联语音模式：点 Mic 说话，识别后的文字会直接进入当前聊天流。建议使用 Chrome/Edge。
-          </p>
         </section>
 
         <aside class="memory-panel" id="memoryPanel">

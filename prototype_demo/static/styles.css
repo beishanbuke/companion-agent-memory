@@ -650,6 +650,57 @@ body::before {
   border-color: rgba(196, 112, 106, 0.25);
 }
 
+/* Voice Status Indicator */
+.voice-status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-warm);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.voice-status-indicator.is-connected {
+  background: var(--accent-warm);
+  box-shadow: 0 0 8px 2px rgba(198, 125, 94, 0.4), 0 0 20px 4px rgba(198, 125, 94, 0.15);
+  animation: warm-glow 2s ease-in-out infinite;
+}
+
+@keyframes warm-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px 2px rgba(198, 125, 94, 0.4), 0 0 20px 4px rgba(198, 125, 94, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 12px 3px rgba(198, 125, 94, 0.6), 0 0 30px 6px rgba(198, 125, 94, 0.25);
+  }
+}
+
+/* Voice Icon Buttons */
+.voice-icon-btn {
+  padding: 10px;
+  min-height: 40px;
+  min-width: 40px;
+  border-radius: var(--radius-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-icon-btn.is-active {
+  background: var(--accent-warm-light);
+  color: var(--accent-warm);
+  border-color: var(--accent-warm-light);
+}
+
+.voice-icon-btn.is-muted {
+  opacity: 0.5;
+}
+
+.voice-icon-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
 #voiceRemoteAudio {
   width: 100%;
   height: 32px;
