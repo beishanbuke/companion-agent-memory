@@ -881,7 +881,8 @@ function renderCharacterList() {
     return;
   }
 
-  characterList.innerHTML = cards.map((card, index) => {
+  // Build new HTML
+  const newHtml = cards.map((card, index) => {
     const isActive = card.id === state.activeCharacterCardId;
     const voiceType = card?.voice?.voice_type || "";
     const voiceLabel = state.characterVoiceOptions.find(v => v.voice_type === voiceType)?.name || voiceType;
@@ -895,22 +896,35 @@ function renderCharacterList() {
     // Extract description part after the role name
     const descLines = desc.split("\n").filter(l => l.trim());
     const shortDesc = descLines.length > 1 ? descLines[1].replace("角色设定：", "").trim() : "";
+    const fullDesc = descLines.slice(1).join("\n").trim() || "暂无详细描述";
     
     return `
-      <div class="character-list-item ${isActive ? "is-active" : ""}" data-card-id="${escapeHtml(card.id)}" data-card-name="${escapeHtml(card.name || card.id)}" style="animation: msg-in 200ms ease ${index * 40}ms both;">
-        <div class="character-list-avatar" style="${escapeHtml(avatarStyle)}">${escapeHtml(initials)}</div>
-        <div class="character-list-info">
-          <div class="character-list-name">${escapeHtml(card.name || card.id)}</div>
-          ${voiceLabel ? `<div class="character-list-voice">${escapeHtml(voiceLabel)}</div>` : ""}
-          ${shortDesc ? `<div class="character-list-desc">${escapeHtml(shortDesc)}</div>` : ""}
+      <div class="character-list-item ${isActive ? "is-active" : ""}" data-card-id="${escapeHtml(card.id)}" data-card-name="${escapeHtml(card.name || card.id)}">
+        <div class="character-list-main">
+          <div class="character-list-avatar" style="${escapeHtml(avatarStyle)}">${escapeHtml(initials)}</div>
+          <div class="character-list-info">
+            <div class="character-list-name">${escapeHtml(card.name || card.id)}</div>
+            ${voiceLabel ? `<div class="character-list-voice">${escapeHtml(voiceLabel)}</div>` : ""}
+            ${shortDesc ? `<div class="character-list-desc">${escapeHtml(shortDesc)}</div>` : ""}
+          </div>
+          <div class="character-list-actions">
+            <button class="character-list-btn select-btn" data-select-card-id="${escapeHtml(card.id)}" title="切换为当前角色">切换</button>
+            ${cards.length > 1 ? `<button class="character-list-btn delete" data-delete-card-id="${escapeHtml(card.id)}" data-delete-card-name="${escapeHtml(card.name || card.id)}" title="删除角色">删除</button>` : ""}
+          </div>
         </div>
-        <div class="character-list-actions">
-          <button class="character-list-btn select-btn" data-select-card-id="${escapeHtml(card.id)}" title="切换为当前角色">切换</button>
-          ${cards.length > 1 ? `<button class="character-list-btn delete" data-delete-card-id="${escapeHtml(card.id)}" data-delete-card-name="${escapeHtml(card.name || card.id)}" title="删除角色">删除</button>` : ""}
+        <div class="character-list-detail">
+          <div class="character-list-detail-image" style="${escapeHtml(avatarStyle)}">${escapeHtml(initials)}</div>
+          <div class="character-list-detail-desc">${escapeHtml(fullDesc).replace(/\n/g, "<br>")}</div>
         </div>
       </div>
     `;
   }).join("");
+
+  // Only update if content changed to avoid flicker
+  if (characterList.dataset.lastHtml !== newHtml) {
+    characterList.dataset.lastHtml = newHtml;
+    characterList.innerHTML = newHtml;
+  }
 
   // Update status
   const active = cards.find((card) => card.id === state.activeCharacterCardId) || cards[0];
@@ -1794,17 +1808,17 @@ characterList?.addEventListener("click", (event) => {
     return;
   }
   
-  // Click on the item itself to select
+  // Click on the item itself to toggle expand/collapse
   const item = event.target.closest(".character-list-item");
   if (item && !event.target.closest(".character-list-actions")) {
-    const cardId = item.dataset.cardId;
-    if (cardId && cardId !== state.activeCharacterCardId) {
-      applyCharacterCardSelection(cardId).catch((error) => {
-        if (characterCardStatus) {
-          characterCardStatus.textContent = `应用失败：${error.message}`;
-        }
-      });
-    }
+    const isExpanded = item.classList.contains("is-expanded");
+    // Collapse all other items
+    document.querySelectorAll(".character-list-item.is-expanded").forEach((el) => {
+      if (el !== item) el.classList.remove("is-expanded");
+    });
+    // Toggle current
+    item.classList.toggle("is-expanded", !isExpanded);
+    return;
   }
 });
 
@@ -1854,7 +1868,7 @@ window.setInterval(() => {
 
 window.setInterval(() => {
   refreshCharacterCards().catch(() => {});
-}, 12000);
+}, 60000);
 
 window.setInterval(() => {
   refreshVoiceStatus().catch(() => {});
