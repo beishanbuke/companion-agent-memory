@@ -761,9 +761,12 @@ async def _synthesize_with_volcengine_async(
     model_name: str | None = None,
 ) -> tuple[bytes, int]:
     app_id = os.getenv("VOLCENGINE_APP_ID", "").strip()
-    access_key = os.getenv("VOLCENGINE_ACCESS_KEY", "").strip()
+    access_key = (
+        os.getenv("VOLCENGINE_TTS_API_KEY", "").strip()
+        or os.getenv("VOLCENGINE_ACCESS_KEY", "").strip()
+    )
     if not app_id or not access_key:
-        raise RuntimeError("Missing VOLCENGINE_APP_ID or VOLCENGINE_ACCESS_KEY in .env")
+        raise RuntimeError("Missing VOLCENGINE_APP_ID or VOLCENGINE_ACCESS_KEY/TTS_API_KEY in .env")
 
     endpoint = os.getenv(
         "VOLCENGINE_TTS_ENDPOINT",
