@@ -21,6 +21,8 @@ const state = {
   characterCards: [],
   activeCharacterCardId: "",
   characterVoiceOptions: [],
+  availableModels: [],
+  currentModel: "",
 };
 
 const chatStream = document.getElementById("chatStream");
@@ -66,6 +68,7 @@ const characterCardDescriptionInput = document.getElementById("characterCardDesc
 const characterCardVoiceSelect = document.getElementById("characterCardVoiceSelect");
 const quickVoiceSelect = document.getElementById("quickVoiceSelect");
 const saveCharacterCardBtn = document.getElementById("saveCharacterCardBtn");
+const modelSelect = document.getElementById("modelSelect");
 
 // Character Card Visual Elements
 const cardVisualAvatar = document.getElementById("cardVisualAvatar");
@@ -1451,6 +1454,56 @@ async function refreshVoiceStatus() {
   renderVoiceStatus(payload);
 }
 
+// ---- Model Selection ----
+function renderModelSelector() {
+  if (!modelSelect) return;
+  
+  const models = state.availableModels;
+  const currentModel = state.currentModel;
+  
+  if (!models.length) {
+    modelSelect.innerHTML = '<option value="">暂无可用模型</option>';
+    return;
+  }
+  
+  modelSelect.innerHTML = models.map((model) => {
+    const isSelected = model.id === currentModel;
+    const isAvailable = model.available;
+    return `<option value="${escapeHtml(model.id)}" ${isSelected ? "selected" : ""} ${!isAvailable ? "disabled" : ""}>
+      ${escapeHtml(model.icon)} ${escapeHtml(model.name)} · ${escapeHtml(model.provider_name)}
+    </option>`;
+  }).join("");
+}
+
+async function refreshModels() {
+  try {
+    const payload = await apiRequest("/api/models");
+    state.availableModels = payload.models || [];
+    state.currentModel = payload.current_model || "";
+    renderModelSelector();
+  } catch (error) {
+    console.error("Failed to load models:", error);
+  }
+}
+
+async function selectModel(modelId) {
+  if (!modelId || modelId === state.currentModel) return;
+  
+  try {
+    const payload = await apiRequest("/api/models/select", {
+      method: "POST",
+      body: JSON.stringify({ model_id: modelId }),
+    });
+    state.currentModel = payload.model_id;
+    renderModelSelector();
+    console.log(`Switched to model: ${payload.name} (${payload.provider})`);
+  } catch (error) {
+    console.error("Failed to select model:", error);
+    alert(`切换模型失败：${error.message}`);
+    await refreshModels();
+  }
+}
+
 function renderRuntimeCardStatus(payload) {
   if (!runtimeCardApplied || !runtimeCardSelected || !runtimeCardSync) {
     return;
@@ -1872,6 +1925,14 @@ saveCharacterCardBtn?.addEventListener("click", () => {
   });
 });
 
+// Model selector
+modelSelect?.addEventListener("change", (event) => {
+  const modelId = event.target.value;
+  if (modelId) {
+    selectModel(modelId);
+  }
+});
+
 // Character card preview live update
 characterCardNameInput?.addEventListener("input", updateCharacterCardPreview);
 characterCardDescriptionInput?.addEventListener("input", updateCharacterCardPreview);
@@ -1898,6 +1959,7 @@ refreshRuntimeCardStatus().catch(() => {});
 refreshVoiceStatus().catch(() => {
   setMicUi();
 });
+refreshModels().catch(() => {});
 state.speechEnabled = loadSpeechEnabledPreference();
 updateVoiceIndicator();
 setMemoryImportUi();

@@ -38,6 +38,108 @@ VOICE_CLIENT_PATH = "/" + os.getenv("VOICE_CLIENT_PATH", "client").lstrip("/")
 VOICE_PROXY_PATH = "/" + os.getenv("VOICE_PROXY_PATH", "voice-client").strip("/")
 SOFTWARE_CATALOG_PATH = PROJECT_DIR / "mcp" / "catalog" / "software_catalog.json"
 
+def load_local_env() -> None:
+    env_path = PROJECT_DIR / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip())
+
+# Load environment variables before defining model configurations
+load_local_env()
+
+# ---- Available LLM Models Configuration ----
+_AVAILABLE_MODELS_CONFIG = [
+    {
+        "id": "deepseek-v3",
+        "name": "DeepSeek-V3",
+        "provider": "siliconflow",
+        "provider_name": "SiliconFlow",
+        "env_api_key": "OPENAI_API_KEY",
+        "env_base_url": "OPENAI_BASE_URL",
+        "default_base_url": "https://api.siliconflow.cn/v1",
+        "model": "deepseek-ai/DeepSeek-V3",
+        "icon": "🔷",
+    },
+    {
+        "id": "kimi-k2.6",
+        "name": "Kimi K2.6",
+        "provider": "kimi",
+        "provider_name": "Moonshot",
+        "env_api_key": "KIMI_API_KEY",
+        "env_base_url": "KIMI_BASE_URL",
+        "default_base_url": "https://api.moonshot.cn/v1",
+        "model": "kimi-k2.6",
+        "icon": "🌙",
+    },
+    {
+        "id": "kimi-k2",
+        "name": "Kimi K2",
+        "provider": "kimi",
+        "provider_name": "Moonshot",
+        "env_api_key": "KIMI_API_KEY",
+        "env_base_url": "KIMI_BASE_URL",
+        "default_base_url": "https://api.moonshot.cn/v1",
+        "model": "kimi-k2",
+        "icon": "🌙",
+    },
+    {
+        "id": "gpt-4o-mini",
+        "name": "GPT-4o Mini",
+        "provider": "openai",
+        "provider_name": "OpenAI",
+        "env_api_key": "OPENAI_API_KEY",
+        "env_base_url": "OPENAI_BASE_URL",
+        "default_base_url": "https://api.siliconflow.cn/v1",
+        "model": "gpt-4o-mini",
+        "icon": "🅾️",
+    },
+]
+
+def _build_available_models() -> list[dict[str, Any]]:
+    """Build available models list from environment variables."""
+    models = []
+    for cfg in _AVAILABLE_MODELS_CONFIG:
+        models.append({
+            "id": cfg["id"],
+            "name": cfg["name"],
+            "provider": cfg["provider"],
+            "provider_name": cfg["provider_name"],
+            "api_key": os.getenv(cfg["env_api_key"], ""),
+            "base_url": os.getenv(cfg["env_base_url"], cfg["default_base_url"]),
+            "model": cfg["model"],
+            "icon": cfg["icon"],
+        })
+    return models
+
+AVAILABLE_MODELS: list[dict[str, Any]] = _build_available_models()
+
+def _get_model_config(model_id: str) -> dict[str, Any]:
+    """Get configuration for a specific model."""
+    for model in AVAILABLE_MODELS:
+        if model["id"] == model_id:
+            return model
+    # Fallback to default
+    return AVAILABLE_MODELS[0]
+
+def _get_available_models() -> list[dict[str, Any]]:
+    """Return available models with API key availability status."""
+    result = []
+    for model in AVAILABLE_MODELS:
+        result.append({
+            "id": model["id"],
+            "name": model["name"],
+            "provider": model["provider"],
+            "provider_name": model["provider_name"],
+            "icon": model["icon"],
+            "available": bool(model["api_key"]),
+        })
+    return result
+
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
@@ -330,19 +432,13 @@ def get_voice_status() -> dict[str, Any]:
     return payload
 
 
-def load_local_env() -> None:
-    env_path = PROJECT_DIR / ".env"
-    if not env_path.exists():
-        return
-    for line in env_path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            continue
-        key, value = stripped.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip())
-
-
-def _chat_api_config() -> tuple[str, str, str]:
+def _chat_api_config(model_id: str = "") -> tuple[str, str, str]:
+    """Get API config for a specific model or fallback to env defaults."""
+    if model_id:
+        config = _get_model_config(model_id)
+        return config["api_key"], config["base_url"] + "/chat/completions", config["model"]
+    
+    # Fallback to env defaults
     api_key = (
         os.getenv("CHAT_API_KEY")
         or os.getenv("OPENAI_API_KEY")
@@ -886,8 +982,8 @@ def _endpoint_candidates(endpoint: str) -> list[str]:
     return deduped
 
 
-def call_chat_completion(messages: list[dict[str, str]]) -> str:
-    api_key, endpoint, model = _chat_api_config()
+def call_chat_completion(messages: list[dict[str, str]], model_id: str = "") -> str:
+    api_key, endpoint, model = _chat_api_config(model_id)
 
     if not api_key:
         raise RuntimeError("Missing CHAT_API_KEY or MEMORY_LLM_API_KEY in .env")
@@ -933,8 +1029,8 @@ def call_chat_completion(messages: list[dict[str, str]]) -> str:
     raise RuntimeError(f"Chat request failed: {last_error}")
 
 
-def iter_chat_completion_chunks(messages: list[dict[str, str]]):
-    api_key, endpoint, model = _chat_api_config()
+def iter_chat_completion_chunks(messages: list[dict[str, str]], model_id: str = ""):
+    api_key, endpoint, model = _chat_api_config(model_id)
     if not api_key:
         raise RuntimeError("Missing CHAT_API_KEY or MEMORY_LLM_API_KEY in .env")
 
@@ -955,7 +1051,7 @@ def iter_chat_completion_chunks(messages: list[dict[str, str]]):
         except Exception as exc:  # pragma: no cover - network/provider variability
             continue
 
-    full_reply = call_chat_completion(messages)
+    full_reply = call_chat_completion(messages, model_id)
     for chunk in _chunk_text(full_reply):
         yield chunk
 
@@ -1215,6 +1311,7 @@ class DemoSession:
     last_updates: list[dict[str, Any]] = field(default_factory=list)
     last_memory_text: str = ""
     last_memory_count: int = 0
+    current_model: str = ""
     companion_core: CompanionAgentCore | None = field(default=None, repr=False)
 
     def __post_init__(self):
@@ -1250,7 +1347,7 @@ class DemoSession:
             history=self.short_history,
         )
 
-        assistant_reply = await asyncio.to_thread(call_chat_completion, messages)
+        assistant_reply = await asyncio.to_thread(call_chat_completion, messages, self.current_model)
 
         # Format response through companion core
         assistant_reply = self.companion_core.format_response(
@@ -1337,7 +1434,7 @@ class DemoSession:
             history=self.short_history,
         )
 
-        chunks = iter_chat_completion_chunks(messages)
+        chunks = iter_chat_completion_chunks(messages, self.current_model)
         assistant_reply = ""
         in_parenthetical = False
         for chunk in chunks:
@@ -1439,6 +1536,7 @@ class DemoSession:
             "updates": self.last_updates,
             "active_card_id": self._active_card().get("id"),
             "active_card_name": self._active_card().get("name"),
+            "current_model": self.current_model,
         }
 
     async def memory_retrieve(
@@ -1611,6 +1709,12 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 payload = {"card": CARD_STORE.get_active_card()}
             self._send_json(payload)
             return
+        if parsed.path == "/api/models":
+            self._send_json({
+                "models": _get_available_models(),
+                "current_model": SESSION.current_model,
+            })
+            return
         if parsed.path == "/api/voice/runtime-card":
             with SESSION_LOCK:
                 payload = VOICE_RUNTIME_STATE.to_payload()
@@ -1760,6 +1864,24 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                         )
                     )
                 self._send_json(payload)
+                return
+
+            if parsed.path == "/api/models/select":
+                model_id = str(body.get("model_id", "")).strip()
+                if not model_id:
+                    self._send_json({"error": "model_id is required"}, status=HTTPStatus.BAD_REQUEST)
+                    return
+                config = _get_model_config(model_id)
+                if not config["api_key"]:
+                    self._send_json({"error": f"Model {model_id} API key not configured"}, status=HTTPStatus.BAD_REQUEST)
+                    return
+                with SESSION_LOCK:
+                    SESSION.current_model = model_id
+                self._send_json({
+                    "model_id": model_id,
+                    "name": config["name"],
+                    "provider": config["provider"],
+                })
                 return
 
             if parsed.path == "/api/cards/select":
