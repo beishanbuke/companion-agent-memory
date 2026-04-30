@@ -1455,6 +1455,17 @@ async function refreshVoiceStatus() {
 }
 
 // ---- Model Selection ----
+// Provider SVG icons
+const PROVIDER_ICONS = {
+  siliconflow: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  kimi: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3C7.5 3 4 6.5 4 11C4 15.5 7.5 19 12 19C16.5 19 20 15.5 20 11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="20" cy="11" r="1.5" fill="currentColor"/></svg>`,
+  openai: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7V12L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+};
+
+function getProviderIcon(provider) {
+  return PROVIDER_ICONS[provider] || PROVIDER_ICONS.openai;
+}
+
 function renderModelSelector() {
   if (!modelSelect) return;
   
@@ -1469,10 +1480,66 @@ function renderModelSelector() {
   modelSelect.innerHTML = models.map((model) => {
     const isSelected = model.id === currentModel;
     const isAvailable = model.available;
+    const iconSvg = getProviderIcon(model.provider);
     return `<option value="${escapeHtml(model.id)}" ${isSelected ? "selected" : ""} ${!isAvailable ? "disabled" : ""}>
-      ${escapeHtml(model.icon)} ${escapeHtml(model.name)} · ${escapeHtml(model.provider_name)}
+      ${model.name} · ${model.provider_name}
     </option>`;
   }).join("");
+  
+  // Add custom dropdown with icons
+  const wrapper = modelSelect.parentElement;
+  let customSelect = wrapper.querySelector('.model-select-custom');
+  if (!customSelect) {
+    customSelect = document.createElement('div');
+    customSelect.className = 'model-select-custom';
+    wrapper.appendChild(customSelect);
+  }
+  
+  const currentModelData = models.find(m => m.id === currentModel) || models[0];
+  customSelect.innerHTML = `
+    <div class="model-select-trigger">
+      <span class="model-select-icon">${getProviderIcon(currentModelData?.provider || 'openai')}</span>
+      <span class="model-select-text">${escapeHtml(currentModelData?.name || '选择模型')}</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="model-select-dropdown">
+      ${models.map((model) => `
+        <div class="model-select-option ${model.id === currentModel ? 'is-selected' : ''} ${!model.available ? 'is-disabled' : ''}" data-model-id="${escapeHtml(model.id)}">
+          <span class="model-select-icon">${getProviderIcon(model.provider)}</span>
+          <span class="model-select-name">${escapeHtml(model.name)}</span>
+          <span class="model-select-provider">${escapeHtml(model.provider_name)}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  
+  // Hide native select
+  modelSelect.style.display = 'none';
+  
+  // Add click handlers
+  const trigger = customSelect.querySelector('.model-select-trigger');
+  const dropdown = customSelect.querySelector('.model-select-dropdown');
+  
+  trigger.addEventListener('click', () => {
+    dropdown.classList.toggle('is-open');
+  });
+  
+  customSelect.querySelectorAll('.model-select-option').forEach((option) => {
+    option.addEventListener('click', () => {
+      const modelId = option.dataset.modelId;
+      if (modelId && !option.classList.contains('is-disabled')) {
+        selectModel(modelId);
+        dropdown.classList.remove('is-open');
+      }
+    });
+  });
+  
+  // Close dropdown on outside click
+  document.addEventListener('click', (e) => {
+    if (!customSelect.contains(e.target)) {
+      dropdown.classList.remove('is-open');
+    }
+  });
 }
 
 async function refreshModels() {

@@ -63,7 +63,7 @@ _AVAILABLE_MODELS_CONFIG = [
         "env_base_url": "OPENAI_BASE_URL",
         "default_base_url": "https://api.siliconflow.cn/v1",
         "model": "deepseek-ai/DeepSeek-V3",
-        "icon": "🔷",
+        "icon": "siliconflow",
     },
     {
         "id": "kimi-k2.6",
@@ -74,18 +74,18 @@ _AVAILABLE_MODELS_CONFIG = [
         "env_base_url": "KIMI_BASE_URL",
         "default_base_url": "https://api.moonshot.cn/v1",
         "model": "kimi-k2.6",
-        "icon": "🌙",
+        "icon": "kimi",
     },
     {
-        "id": "kimi-k2",
-        "name": "Kimi K2",
+        "id": "kimi-latest",
+        "name": "Kimi Latest",
         "provider": "kimi",
         "provider_name": "Moonshot",
         "env_api_key": "KIMI_API_KEY",
         "env_base_url": "KIMI_BASE_URL",
         "default_base_url": "https://api.moonshot.cn/v1",
-        "model": "kimi-k2",
-        "icon": "🌙",
+        "model": "kimi-latest",
+        "icon": "kimi",
     },
     {
         "id": "gpt-4o-mini",
@@ -96,7 +96,7 @@ _AVAILABLE_MODELS_CONFIG = [
         "env_base_url": "OPENAI_BASE_URL",
         "default_base_url": "https://api.siliconflow.cn/v1",
         "model": "gpt-4o-mini",
-        "icon": "🅾️",
+        "icon": "openai",
     },
 ]
 
@@ -982,6 +982,13 @@ def _endpoint_candidates(endpoint: str) -> list[str]:
     return deduped
 
 
+def _get_model_temperature(model_id: str) -> float:
+    """Get appropriate temperature for a model."""
+    if "kimi" in model_id.lower():
+        return 1.0
+    return 0.6
+
+
 def call_chat_completion(messages: list[dict[str, str]], model_id: str = "") -> str:
     api_key, endpoint, model = _chat_api_config(model_id)
 
@@ -990,7 +997,7 @@ def call_chat_completion(messages: list[dict[str, str]], model_id: str = "") -> 
 
     payload = {
         "model": model,
-        "temperature": 0.6,
+        "temperature": _get_model_temperature(model_id),
         "messages": messages,
     }
     body = json.dumps(payload).encode("utf-8")
@@ -1036,7 +1043,7 @@ def iter_chat_completion_chunks(messages: list[dict[str, str]], model_id: str = 
 
     payload = {
         "model": model,
-        "temperature": 0.6,
+        "temperature": _get_model_temperature(model_id),
         "messages": messages,
         "stream": True,
     }
