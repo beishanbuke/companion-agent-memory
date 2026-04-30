@@ -1725,6 +1725,21 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 "current_model": SESSION.current_model,
             })
             return
+        if parsed.path == "/api/voice/llm-config":
+            # Only allow local access to protect API keys
+            client_ip = self.client_address[0]
+            if client_ip not in ("127.0.0.1", "::1", "localhost"):
+                self.send_error(HTTPStatus.FORBIDDEN, "Forbidden")
+                return
+            config = _get_model_config(SESSION.current_model)
+            self._send_json({
+                "model_id": SESSION.current_model,
+                "api_key": config["api_key"],
+                "base_url": config["base_url"],
+                "model": config["model"],
+                "provider": config["provider"],
+            })
+            return
         if parsed.path == "/api/voice/runtime-card":
             with SESSION_LOCK:
                 payload = VOICE_RUNTIME_STATE.to_payload()

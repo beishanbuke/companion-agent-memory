@@ -107,6 +107,15 @@ class HTTPMemoryBackend(BaseMemory):
             },
         )
 
+    async def get_selected_llm_config(self) -> dict[str, Any]:
+        payload = await asyncio.to_thread(
+            self._request_json,
+            "GET",
+            "/api/voice/llm-config",
+            None,
+        )
+        return payload if isinstance(payload, dict) else {}
+
     def _request_json(
         self,
         method: str,

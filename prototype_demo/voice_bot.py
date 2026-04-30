@@ -63,6 +63,25 @@ SYSTEM_PROMPT = """你是一个温和、自然、简洁的陪伴型助手。
 """
 
 
+class DynamicOpenAILLMService(OpenAILLMService):
+    """OpenAI LLM service that supports runtime updates of api_key and base_url."""
+
+    def update_client(self, *, api_key: str | None = None, base_url: str | None = None) -> None:
+        """Recreate the underlying AsyncOpenAI client with new credentials.
+
+        This allows switching between providers (e.g. SiliconFlow → Kimi)
+        without rebuilding the entire Pipecat pipeline.
+        """
+        try:
+            self._client = self.create_client(
+                api_key=api_key,
+                base_url=base_url,
+            )
+            logger.info("Updated LLM client: base_url={}", base_url)
+        except Exception as exc:
+            logger.warning("Failed to update LLM client: {}", exc)
+
+
 def memory_api_base_url() -> str:
     explicit_base_url = os.getenv("MEMORY_API_BASE_URL", "").strip()
     if explicit_base_url:
@@ -235,10 +254,18 @@ async def run_bot(transport: BaseTransport):
     )
     stt = build_stt_service()
     tts = build_tts_service(active_card)
-    llm = OpenAILLMService(
-        model=runtime_model or os.getenv("OPENAI_MODEL"),
-        api_key=os.getenv("OPENAI_API_KEY"),
-        base_url=os.getenv("OPENAI_BASE_URL"),
+
+    # Load current model config from server so the voice bot uses the same
+    # provider/api_key/base_url as the text chat.
+    llm_config = await memory.get_selected_llm_config()
+    llm_api_key = llm_config.get("api_key") or os.getenv("OPENAI_API_KEY")
+    llm_base_url = llm_config.get("base_url") or os.getenv("OPENAI_BASE_URL")
+    llm_model = llm_config.get("model") or runtime_model or os.getenv("OPENAI_MODEL")
+
+    llm = DynamicOpenAILLMService(
+        model=llm_model,
+        api_key=llm_api_key,
+        base_url=llm_base_url,
     )
     vad_params = VADParams(
         start_secs=float(os.getenv("VOICE_VAD_START_SECS", "0.12")),
@@ -280,7 +307,17 @@ async def run_bot(transport: BaseTransport):
         ),
     )
 
+    # Track currently applied settings to avoid unnecessary resets mid-stream
+    _current_prompt = runtime_prompt
+    _current_voice = (
+        (active_card.get("voice") or {}).get("voice_type")
+        if isinstance(active_card.get("voice"), dict)
+        else ""
+    )
+    _current_model = runtime_model
+
     async def refresh_runtime_card(reason: str) -> None:
+        nonlocal _current_prompt, _current_voice, _current_model
         try:
             card = await memory.get_active_character_card()
         except Exception as exc:
@@ -295,18 +332,44 @@ async def run_bot(transport: BaseTransport):
             else ""
         )
 
-        # Reset conversation context for the new role so old persona state does not leak.
-        context.set_messages([{"role": "system", "content": next_prompt}])
+        # Only reset conversation context when the prompt actually changes to avoid
+        # wiping conversation history on reconnect.
+        if next_prompt != _current_prompt:
+            context.set_messages([{"role": "system", "content": next_prompt}])
+            _current_prompt = next_prompt
+            logger.info("Switched system prompt on {}", reason)
 
-        if next_voice and hasattr(tts, "set_voice"):
+        # Only switch TTS voice when it actually changes to avoid timbre shifts
+        # mid-reply caused by reconnects.
+        if next_voice and next_voice != _current_voice and hasattr(tts, "set_voice"):
             try:
                 tts.set_voice(str(next_voice))
+                _current_voice = next_voice
+                logger.info("Switched TTS voice to {} on {}", next_voice, reason)
             except Exception as exc:
                 logger.warning("Failed to switch TTS voice on {}: {}", reason, exc)
 
-        if next_model and hasattr(llm, "set_full_model_name"):
+        # When the model changes we must also update api_key/base_url so that
+        # the voice bot calls the same provider as the text chat.
+        if next_model and next_model != _current_model:
             try:
-                llm.set_full_model_name(next_model)
+                new_config = await memory.get_selected_llm_config()
+                new_api_key = new_config.get("api_key") or os.getenv("OPENAI_API_KEY")
+                new_base_url = new_config.get("base_url") or os.getenv("OPENAI_BASE_URL")
+                new_actual_model = new_config.get("model") or next_model
+
+                if hasattr(llm, "update_client"):
+                    llm.update_client(api_key=new_api_key, base_url=new_base_url)
+                if hasattr(llm, "set_full_model_name"):
+                    llm.set_full_model_name(new_actual_model)
+
+                _current_model = next_model
+                logger.info(
+                    "Switched LLM to {} (provider={}) on {}",
+                    new_actual_model,
+                    new_config.get("provider", "unknown"),
+                    reason,
+                )
             except Exception as exc:
                 logger.warning("Failed to switch LLM model on {}: {}", reason, exc)
 

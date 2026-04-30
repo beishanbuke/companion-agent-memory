@@ -504,7 +504,8 @@ function setupVoicePeerConnection(iceServers) {
       return;
     }
     remoteVoiceStream.addTrack(event.track);
-    voiceRemoteAudio.play().catch(() => {});
+    // autoplay on the audio element handles playback; explicit play() can
+    // cause duplicate playback streams in some browsers.
   });
 
   pc.addEventListener("connectionstatechange", () => {
@@ -756,7 +757,7 @@ function enqueueTtsChunk(text) {
 }
 
 async function connectVoice() {
-  if (!state.voiceAvailable || state.voiceConnecting || state.voiceConnected) {
+  if (!state.voiceAvailable || state.voiceConnecting || state.voiceConnected || voicePeerConnection) {
     return;
   }
 
@@ -853,6 +854,8 @@ async function disconnectVoice(options = {}) {
   }
 
   resetVoiceState();
+  // Reset auto-connect flag so reconnection can happen after manual disconnect
+  autoConnectAttempted = false;
   setMicUi();
   if (!options.keepStatus) {
     setVoiceStatus("语音已断开。重新点击 Connect 或 Mic 可再次连接。");
@@ -2032,6 +2035,11 @@ updateVoiceIndicator();
 setMemoryImportUi();
 setSpeechToggleUi();
 updateCharacterCardPreview();
+
+// Cleanup voice connection on page unload to prevent ghost sessions
+window.addEventListener("beforeunload", () => {
+  disconnectVoice({ keepStatus: true }).catch(() => {});
+});
 
 window.setInterval(() => {
   if (!state.pending) {
