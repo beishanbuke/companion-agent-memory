@@ -30,23 +30,41 @@ Return strict JSON with this schema:
       "value": "normalized memory value",
       "summary": "short summary",
       "tags": ["tag1", "tag2"],
-      "metadata": {"optional": "fields"}
+      "metadata": {"optional": "fields"},
+      "operation": "add" | "update" | "noop"
     }
   ]
 }
 
-Rules:
+Context-aware rules:
+- You are given the user's CURRENT memory profile. Use it to decide if new info should ADD a new field or UPDATE an existing one.
+- If user mentions a location/school/company change (e.g., "搬到南沙", "在港科大广州读硕士"), this is an UPDATE to existing location/education fields, not a new event.
+- If user states a new fact that CONTRADICTS an existing memory (e.g., new job, new city, new school), mark operation="update" and provide the new value.
+- If user states a new fact that does NOT exist yet, mark operation="add".
+- If the message is just a question, greeting, or doesn't contain durable facts, return {"candidates": []}.
+- For location/city changes: update home_city, work_city, or current_location.
+- For education changes: update education, school, or degree.
+- For job changes: update occupation or work_context.
+
+Standard rules:
 - Extract only information likely to matter across future sessions.
 - Ignore pleasantries, filler, and generic reactions.
 - Preserve the user's original language in `value` whenever possible. Do not translate slot values unless necessary.
 - For persona/preference, prefer stable slot keys such as:
-  name, age, occupation, work_context, relationship_status, home_city, work_city,
+  name, age, occupation, work_context, relationship_status, home_city, work_city, current_location, education, school, degree,
   favorite_beverage, favorite_food, food_spice, food_flavor, music_style,
   activity_style, social_style, living_preference, long_term_goal, ongoing_issue,
   support_preference, boundary.
+- IMPORTANT: When user mentions music preferences (e.g., "我喜欢摇滚", "我爱听爵士", "常听民谣"), ALWAYS extract as:
+  memory_type: "preference"
+  slot_key: "music_style"
+  value: the specific genre mentioned (e.g., "摇滚", "爵士", "民谣")
 - Use slot_key = null for event memories.
 - If nothing durable should be stored, return {"candidates": []}.
 - Output JSON only. No markdown fences.
+
+Current user memory profile:
+{existing_memory}
 """
 
 
@@ -76,17 +94,20 @@ class RemoteLLMMemoryExtractor:
     def is_configured(self) -> bool:
         return bool(self.api_key)
 
-    async def extract(self, content: str) -> list[dict[str, Any]]:
+    async def extract(self, content: str, existing_memory: str = "") -> list[dict[str, Any]]:
         if not self.is_configured():
             return []
-        return await asyncio.to_thread(self._extract_sync, content)
+        return await asyncio.to_thread(self._extract_sync, content, existing_memory)
 
-    def _extract_sync(self, content: str) -> list[dict[str, Any]]:
+    def _extract_sync(self, content: str, existing_memory: str = "") -> list[dict[str, Any]]:
+        system_prompt = _SYSTEM_PROMPT.replace(
+            "{existing_memory}", existing_memory or "No existing memory."
+        )
         payload = {
             "model": self.model,
             "temperature": 0,
             "messages": [
-                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": content},
             ],
         }

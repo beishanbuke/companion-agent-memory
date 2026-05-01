@@ -146,6 +146,10 @@ if str(PROJECT_DIR) not in sys.path:
 from memory import StructuredLongTermMemory
 from context_engine import load_scene_strategies, pack_context_messages
 
+# Context Engine V3 (Companion Runtime Brain)
+from context_engine_v2 import build_context_v3, ContextBuildInput
+from context_engine_v2.types import ChatMessage
+
 # Companion Agent Core
 from companion_agent import CompanionAgentCore
 from companion_agent.persona import PersonaConfig
@@ -1323,6 +1327,8 @@ class DemoSession:
     last_memory_count: int = 0
     current_model: str = ""
     companion_core: CompanionAgentCore | None = field(default=None, repr=False)
+    _event_queue: list[dict[str, Any]] = field(default_factory=list, repr=False)
+    _event_listeners: list[asyncio.Queue] = field(default_factory=list, repr=False)
 
     def __post_init__(self):
         if self.companion_core is None:
@@ -1334,13 +1340,211 @@ class DemoSession:
     def _active_card(self) -> dict[str, Any]:
         return CARD_STORE.get_active_card()
 
+    def _push_event(self, event_type: str, data: dict[str, Any]) -> None:
+        """Push an event to all SSE listeners."""
+        event = {"type": event_type, "data": data, "timestamp": time.time()}
+        self._event_queue.append(event)
+        # Keep only last 100 events
+        if len(self._event_queue) > 100:
+            self._event_queue = self._event_queue[-100:]
+        # Notify listeners
+        for queue in self._event_listeners:
+            try:
+                queue.put_nowait(event)
+            except asyncio.QueueFull:
+                pass
+
+    def get_event_queue(self) -> list[dict[str, Any]]:
+        """Get a copy of recent events."""
+        return list(self._event_queue)
+
+    def create_event_listener(self) -> asyncio.Queue:
+        """Create a new event listener queue."""
+        queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+        self._event_listeners.append(queue)
+        return queue
+
+    def remove_event_listener(self, queue: asyncio.Queue) -> None:
+        """Remove an event listener."""
+        if queue in self._event_listeners:
+            self._event_listeners.remove(queue)
+
     async def send_message(
         self,
         user_message: str,
         memory_enabled: bool,
+        context_engine_v2: bool = False,
+        debug: bool = False,
     ) -> dict[str, Any]:
         before_snapshot = self.memory.snapshot()
         active_card = self._active_card()
+
+        if context_engine_v2:
+            # === Context Engine V3 (Companion Runtime Brain) ===
+            history = [ChatMessage(role=m["role"], content=m["content"]) for m in self.short_history]
+            
+            # Retrieve memory if enabled
+            memory_text = ""
+            memory_count = 0
+            if memory_enabled:
+                memory_text = await self.memory.retrieve(query=user_message, limit=5)
+                memory_count = count_retrieved_items(memory_text)
+            
+            ctx_input = ContextBuildInput(
+                user_id="demo-user",
+                character_id=active_card.get("id", "default-companion"),
+                conversation_id="demo-conversation",
+                user_message=user_message,
+                history=history,
+                debug=debug,
+                character_prompt=active_card.get("system_prompt", ""),
+            )
+            ctx_result = build_context_v3(ctx_input)
+
+            # Inject memory into blocks if available
+            if memory_text and memory_count > 0:
+                from context_engine_v2.types import ContextBlock
+                from context_engine_v2.token_budget import estimate_tokens
+                memory_block = ContextBlock(
+                    id="memory:retrieved",
+                    type="memory",
+                    role="system",
+                    title="User Memory",
+                    content=f"以下是与用户相关的记忆，请自然地在回复中运用：\n{memory_text}",
+                    priority=70,
+                    tokens=estimate_tokens(memory_text),
+                    source="memory_store",
+                    reason=f"Retrieved {memory_count} memory items relevant to query",
+                    position="before_history",
+                )
+                # Insert before history blocks (which are at the end)
+                ctx_result.blocks.insert(-1, memory_block)
+                # Recompose messages with memory
+                from context_engine_v2.prompt_composer import compose_messages
+                ctx_result.messages = compose_messages(
+                    ctx_result.blocks,
+                    history[-8:],
+                    user_message,
+                )
+
+            messages = ctx_result.messages
+
+            assistant_reply = await asyncio.to_thread(call_chat_completion, messages, self.current_model)
+            assistant_reply = _sanitize_assistant_text(assistant_reply)
+
+            self.short_history.append({"role": "user", "content": user_message})
+            self.short_history.append({"role": "assistant", "content": assistant_reply})
+
+            # Memory update
+            after_snapshot = self.memory.snapshot()
+            updates: list[dict[str, Any]] = []
+            if memory_enabled and should_store_user_message(user_message):
+                await self.memory.store("user", user_message)
+                after_snapshot = self.memory.snapshot()
+                updates = diff_snapshots(before_snapshot, after_snapshot)
+
+            # Update instance state for /api/state endpoint
+            self.last_updates = updates
+            self.last_memory_text = memory_text if memory_count > 0 else ""
+            self.last_memory_count = memory_count
+
+            # Push memory update events
+            if updates:
+                self._push_event("memory_updates", {
+                    "updates": updates,
+                    "memory_panel": serialize_memory(after_snapshot),
+                })
+
+            result_payload: dict[str, Any] = {
+                "reply": assistant_reply,
+                "messages": self.short_history,
+                "memory_panel": serialize_memory(after_snapshot),
+                "memory_used": memory_count > 0,
+                "memory_used_count": memory_count,
+                "memory_preview": memory_text if memory_count > 0 else "本次回答没有使用长期记忆",
+                "updates": updates,
+                "active_card_id": active_card.get("id"),
+                "active_card_name": active_card.get("name"),
+                "ncp": None,
+                "companion": {
+                    "situation": ctx_result.route.intent,
+                    "situation_confidence": 1.0,
+                    "memory_decision": {
+                        "action": "add" if memory_enabled and should_store_user_message(user_message) else "ignore",
+                        "reason": "Context Engine V3 with memory" if memory_enabled else "Memory disabled",
+                        "requires_confirmation": False,
+                    },
+                    "skills_activated": ctx_result.route.skills,
+                    "safety_flag": ctx_result.route.intent == "crisis",
+                },
+                "context_meta": {
+                    "scene": ctx_result.route.intent,
+                    "history_window": len(self.short_history),
+                    "memory_limit": memory_count,
+                    "companion_enabled": True,
+                    "context_engine_v2": True,
+                    "context_engine_v3": True,
+                },
+                "mcp_tool_results": [
+                    {
+                        "skill": r["skill"],
+                        "tool_results": r["result"].get("tool_results", []),
+                        "formatted_context": r["result"].get("formatted_context", ""),
+                    }
+                    for r in ctx_result.mcp_tool_results
+                ] if ctx_result.mcp_tool_results else [],
+            }
+            if debug:
+                result_payload["debug"] = {
+                    "route": {
+                        "intent": ctx_result.route.intent,
+                        "emotion": ctx_result.route.emotion,
+                        "skills": ctx_result.route.skills,
+                        "need_memory": ctx_result.route.need_memory,
+                        "need_lorebook": ctx_result.route.need_lorebook,
+                        "need_robot_context": ctx_result.route.need_robot_context,
+                        "response_style": ctx_result.route.response_style,
+                    },
+                    "blocks": [
+                        {
+                            "id": b.id,
+                            "type": b.type,
+                            "title": b.title,
+                            "priority": b.priority,
+                            "tokens": b.tokens,
+                            "required": b.required,
+                            "source": b.source,
+                            "reason": b.reason,
+                            "position": b.position,
+                            "content": b.content,
+                        }
+                        for b in ctx_result.blocks
+                    ],
+                    "token_summary": {
+                        "max_input_tokens": ctx_result.token_summary.max_input_tokens,
+                        "used_tokens": ctx_result.token_summary.used_tokens,
+                        "removed_blocks": [
+                            {
+                                "id": b.id,
+                                "type": b.type,
+                                "title": b.title,
+                                "priority": b.priority,
+                                "tokens": b.tokens,
+                            }
+                            for b in ctx_result.token_summary.removed_blocks
+                        ],
+                    },
+                    "trace": [
+                        {
+                            "step": t.step,
+                            "detail": t.detail,
+                            "data": t.data,
+                        }
+                        for t in ctx_result.trace
+                    ],
+                    "final_messages": ctx_result.messages,
+                }
+            return result_payload
 
         # === Companion Agent Core Processing ===
         companion_result = await self.companion_core.process_message(
@@ -1372,7 +1576,7 @@ class DemoSession:
 
         # Memory update (using companion core's decision)
         after_snapshot = before_snapshot
-        updates: list[dict[str, Any]] = []
+        updates = []
         if memory_enabled and companion_result.memory_decision.action in ("add", "update"):
             if not companion_result.memory_decision.requires_confirmation:
                 await self.memory.store("user", user_message)
@@ -1425,9 +1629,179 @@ class DemoSession:
         self,
         user_message: str,
         memory_enabled: bool,
+        context_engine_v2: bool = False,
+        debug: bool = False,
     ):
         before_snapshot = self.memory.snapshot()
         active_card = self._active_card()
+
+        if context_engine_v2:
+            # === Context Engine V3 (Companion Runtime Brain) ===
+            history = [ChatMessage(role=m["role"], content=m["content"]) for m in self.short_history]
+            
+            # Retrieve memory if enabled
+            memory_text = ""
+            memory_count = 0
+            if memory_enabled:
+                memory_text = asyncio.run(self.memory.retrieve(query=user_message, limit=5))
+                memory_count = count_retrieved_items(memory_text)
+            
+            ctx_input = ContextBuildInput(
+                user_id="demo-user",
+                character_id=active_card.get("id", "default-companion"),
+                conversation_id="demo-conversation",
+                user_message=user_message,
+                history=history,
+                debug=debug,
+                character_prompt=active_card.get("system_prompt", ""),
+            )
+            ctx_result = build_context_v3(ctx_input)
+
+            # Inject memory into blocks if available
+            if memory_text and memory_count > 0:
+                from context_engine_v2.types import ContextBlock
+                from context_engine_v2.token_budget import estimate_tokens
+                memory_block = ContextBlock(
+                    id="memory:retrieved",
+                    type="memory",
+                    role="system",
+                    title="User Memory",
+                    content=f"以下是与用户相关的记忆，请自然地在回复中运用：\n{memory_text}",
+                    priority=70,
+                    tokens=estimate_tokens(memory_text),
+                    source="memory_store",
+                    reason=f"Retrieved {memory_count} memory items relevant to query",
+                    position="before_history",
+                )
+                ctx_result.blocks.insert(-1, memory_block)
+                from context_engine_v2.prompt_composer import compose_messages
+                ctx_result.messages = compose_messages(
+                    ctx_result.blocks,
+                    history[-8:],
+                    user_message,
+                )
+
+            messages = ctx_result.messages
+
+            chunks = iter_chat_completion_chunks(messages, self.current_model)
+            assistant_reply = ""
+            in_parenthetical = False
+            for chunk in chunks:
+                filtered_chunk, in_parenthetical = _sanitize_stream_chunk(chunk, in_parenthetical)
+                if not filtered_chunk:
+                    continue
+                assistant_reply += filtered_chunk
+                yield {"type": "assistant_delta", "delta": filtered_chunk}
+
+            assistant_reply = _sanitize_assistant_text(assistant_reply)
+
+            self.short_history.append({"role": "user", "content": user_message})
+            self.short_history.append({"role": "assistant", "content": assistant_reply})
+
+            # Memory update
+            after_snapshot = self.memory.snapshot()
+            updates = []
+            if memory_enabled and should_store_user_message(user_message):
+                asyncio.run(self.memory.store("user", user_message))
+                after_snapshot = self.memory.snapshot()
+                updates = diff_snapshots(before_snapshot, after_snapshot)
+
+            # Update instance state for /api/state endpoint
+            self.last_updates = updates
+            self.last_memory_text = memory_text if memory_count > 0 else ""
+            self.last_memory_count = memory_count
+
+            result_payload = {
+                "reply": assistant_reply,
+                "messages": self.short_history,
+                "memory_panel": serialize_memory(after_snapshot),
+                "memory_used": memory_count > 0,
+                "memory_used_count": memory_count,
+                "memory_preview": memory_text if memory_count > 0 else "本次回答没有使用长期记忆",
+                "updates": updates,
+                "active_card_id": active_card.get("id"),
+                "active_card_name": active_card.get("name"),
+                "ncp": None,
+                "companion": {
+                    "situation": ctx_result.route.intent,
+                    "situation_confidence": 1.0,
+                    "memory_decision": {
+                        "action": "add" if memory_enabled and should_store_user_message(user_message) else "ignore",
+                        "reason": "Context Engine V3 with memory" if memory_enabled else "Memory disabled",
+                        "requires_confirmation": False,
+                    },
+                    "skills_activated": ctx_result.route.skills,
+                    "safety_flag": ctx_result.route.intent == "crisis",
+                },
+                "context_meta": {
+                    "scene": ctx_result.route.intent,
+                    "history_window": len(self.short_history),
+                    "memory_limit": memory_count,
+                    "companion_enabled": True,
+                    "context_engine_v2": True,
+                    "context_engine_v3": True,
+                },
+                "mcp_tool_results": [
+                    {
+                        "skill": r["skill"],
+                        "tool_results": r["result"].get("tool_results", []),
+                        "formatted_context": r["result"].get("formatted_context", ""),
+                    }
+                    for r in ctx_result.mcp_tool_results
+                ] if ctx_result.mcp_tool_results else [],
+            }
+            if debug:
+                result_payload["debug"] = {
+                    "route": {
+                        "intent": ctx_result.route.intent,
+                        "emotion": ctx_result.route.emotion,
+                        "skills": ctx_result.route.skills,
+                        "need_memory": ctx_result.route.need_memory,
+                        "need_lorebook": ctx_result.route.need_lorebook,
+                        "need_robot_context": ctx_result.route.need_robot_context,
+                        "response_style": ctx_result.route.response_style,
+                    },
+                    "blocks": [
+                        {
+                            "id": b.id,
+                            "type": b.type,
+                            "title": b.title,
+                            "priority": b.priority,
+                            "tokens": b.tokens,
+                            "required": b.required,
+                            "source": b.source,
+                            "reason": b.reason,
+                            "position": b.position,
+                            "content": b.content,
+                        }
+                        for b in ctx_result.blocks
+                    ],
+                    "token_summary": {
+                        "max_input_tokens": ctx_result.token_summary.max_input_tokens,
+                        "used_tokens": ctx_result.token_summary.used_tokens,
+                        "removed_blocks": [
+                            {
+                                "id": b.id,
+                                "type": b.type,
+                                "title": b.title,
+                                "priority": b.priority,
+                                "tokens": b.tokens,
+                            }
+                            for b in ctx_result.token_summary.removed_blocks
+                        ],
+                    },
+                    "trace": [
+                        {
+                            "step": t.step,
+                            "detail": t.detail,
+                            "data": t.data,
+                        }
+                        for t in ctx_result.trace
+                    ],
+                    "final_messages": ctx_result.messages,
+                }
+            yield {"type": "final", "payload": result_payload}
+            return
 
         # === Companion Agent Core Processing ===
         companion_result = asyncio.run(self.companion_core.process_message(
@@ -1469,7 +1843,7 @@ class DemoSession:
 
         # Memory update (using companion core's decision)
         after_snapshot = before_snapshot
-        updates: list[dict[str, Any]] = []
+        updates = []
         if memory_enabled and companion_result.memory_decision.action in ("add", "update"):
             if not companion_result.memory_decision.requires_confirmation:
                 asyncio.run(self.memory.store("user", user_message))
@@ -1745,6 +2119,9 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 payload = VOICE_RUNTIME_STATE.to_payload()
             self._send_json(payload)
             return
+        if parsed.path == "/api/events":
+            self._send_sse_events()
+            return
         if parsed.path == "/start" or parsed.path.startswith("/sessions/"):
             self._proxy_upstream_request("GET", parsed.path, parsed.query)
             return
@@ -1789,6 +2166,8 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/chat-stream":
                 message = str(body.get("message", "")).strip()
                 memory_enabled = bool(body.get("memory_enabled", True))
+                context_engine_v2 = bool(body.get("context_engine_v2", False))
+                debug = bool(body.get("debug", False))
                 if not message:
                     self._send_json({"error": "Message is required"}, status=HTTPStatus.BAD_REQUEST)
                     return
@@ -1798,6 +2177,8 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                         for event in SESSION.stream_message(
                             message,
                             memory_enabled,
+                            context_engine_v2=context_engine_v2,
+                            debug=debug,
                         ):
                             self._send_stream_event(event)
                 except BrokenPipeError:
@@ -1878,6 +2259,8 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/chat":
                 message = str(body.get("message", "")).strip()
                 memory_enabled = bool(body.get("memory_enabled", True))
+                context_engine_v2 = bool(body.get("context_engine_v2", False))
+                debug = bool(body.get("debug", False))
                 if not message:
                     self._send_json({"error": "Message is required"}, status=HTTPStatus.BAD_REQUEST)
                     return
@@ -1886,6 +2269,8 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                         SESSION.send_message(
                             message,
                             memory_enabled,
+                            context_engine_v2=context_engine_v2,
+                            debug=debug,
                         )
                     )
                 self._send_json(payload)
@@ -2047,6 +2432,53 @@ class PrototypeHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(payload)
+
+    def _send_sse_events(self) -> None:
+        """Send Server-Sent Events for real-time memory updates."""
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        with SESSION_LOCK:
+            queue = SESSION.create_event_listener()
+            # Send any existing recent events
+            for event in SESSION.get_event_queue()[-10:]:
+                data = json.dumps(event, ensure_ascii=False)
+                try:
+                    self.wfile.write(f"data: {data}\n\n".encode("utf-8"))
+                    self.wfile.flush()
+                except Exception:
+                    break
+
+        try:
+            while True:
+                with SESSION_LOCK:
+                    if queue not in SESSION._event_listeners:
+                        break
+                # Use a timeout to periodically check connection
+                try:
+                    event = loop.run_until_complete(asyncio.wait_for(queue.get(), timeout=1.0))
+                    data = json.dumps(event, ensure_ascii=False)
+                    self.wfile.write(f"data: {data}\n\n".encode("utf-8"))
+                    self.wfile.flush()
+                except asyncio.TimeoutError:
+                    # Send a keepalive comment
+                    self.wfile.write(b": keepalive\n\n")
+                    self.wfile.flush()
+                    continue
+                except Exception:
+                    break
+        finally:
+            with SESSION_LOCK:
+                SESSION.remove_event_listener(queue)
+            loop.close()
 
     def _send_stream_headers(self) -> None:
         self.send_response(HTTPStatus.OK)

@@ -18,6 +18,9 @@ const state = {
   memoryImportOpen: false,
   memoryImportPending: false,
   deletingMemoryIds: new Set(),
+  contextEngineV2: true,
+  showContextTrace: true,
+  lastContextDebug: null,
   characterCards: [],
   activeCharacterCardId: "",
   characterVoiceOptions: [],
@@ -1626,6 +1629,8 @@ async function sendMessage(message, options = {}) {
       body: JSON.stringify({
         message: userMessage,
         memory_enabled: state.memoryEnabled,
+        context_engine_v2: state.contextEngineV2,
+        debug: state.showContextTrace,
       }),
     });
     if (!response.ok || !response.body) {
@@ -1680,6 +1685,21 @@ async function sendMessage(message, options = {}) {
         if (event.type === "final") {
           renderMessages(event.payload?.messages || []);
           renderMemoryPanel(event.payload || {});
+          if (event.payload?.debug) {
+            state.lastContextDebug = event.payload.debug;
+            renderContextTrace(event.payload.debug);
+          }
+          // Render MCP tool results (e.g., playlist with play button)
+          if (event.payload?.mcp_tool_results?.length) {
+            for (const toolResult of event.payload.mcp_tool_results) {
+              if (toolResult.skill === "radio_dj" && toolResult.tool_results?.length) {
+                const playlist = toolResult.tool_results[0];
+                if (playlist?.tracks) {
+                  renderPlaylistPlayer(playlist);
+                }
+              }
+            }
+          }
           if (state.shouldSpeakReply) {
             if (seenDelta) {
               const { chunks } = splitSpeakableChunks(streamTtsBuffer, true);
@@ -1704,6 +1724,21 @@ async function sendMessage(message, options = {}) {
       if (event.type === "final") {
         renderMessages(event.payload?.messages || []);
         renderMemoryPanel(event.payload || {});
+        if (event.payload?.debug) {
+          state.lastContextDebug = event.payload.debug;
+          renderContextTrace(event.payload.debug);
+        }
+        // Render MCP tool results (e.g., playlist with play button)
+        if (event.payload?.mcp_tool_results?.length) {
+          for (const toolResult of event.payload.mcp_tool_results) {
+            if (toolResult.skill === "radio_dj" && toolResult.tool_results?.length) {
+              const playlist = toolResult.tool_results[0];
+              if (playlist?.tracks) {
+                renderPlaylistPlayer(playlist);
+              }
+            }
+          }
+        }
         if (state.shouldSpeakReply) {
           enqueueTtsChunk(event.payload?.reply || "");
         }
@@ -1871,6 +1906,226 @@ memoryImportInput.addEventListener("keydown", (event) => {
   }
 });
 
+function renderContextTrace(debug) {
+  const panel = document.getElementById("contextTracePanel");
+  const body = document.getElementById("contextTraceBody");
+  if (!panel || !body) return;
+
+  // Always show panel, even if showContextTrace is false - just show different content
+  panel.style.display = "block";
+
+  if (!debug) {
+    body.innerHTML = `<p class="muted">等待消息处理完成... 发送消息后将显示链路追踪。</p>`;
+    return;
+  }
+
+  const trace = debug.trace || [];
+  const blocks = debug.blocks || [];
+  const tokenSummary = debug.token_summary || {};
+
+  let html = "";
+
+  // === Companion Runtime Brain Architecture ===
+  html += `
+    <div class="trace-section">
+      <div class="trace-section-title">Companion Runtime Brain</div>
+      <div class="trace-stat">
+        <strong>Flow:</strong> Signal Detection → State Update → Skill Selection → Micro Context Injection → Response
+      </div>
+    </div>
+  `;
+
+  // === Step 1: Detected Signals ===
+  const signalStep = trace.find(t => t.step === "Signal Detection");
+  if (signalStep && signalStep.data) {
+    const signals = signalStep.data;
+    html += `
+      <div class="trace-section">
+        <div class="trace-section-title">1. Detected Signals</div>
+        <div class="trace-signals">
+    `;
+
+    // Mood
+    if (signals.mood && signals.mood.active) {
+      html += renderSignalBadge("mood", signals.mood.type, signals.mood.confidence);
+    }
+    // Food
+    if (signals.food && signals.food.active) {
+      html += renderSignalBadge("food", signals.food.intent, 0.85);
+    }
+    // Music
+    if (signals.music && signals.music.active) {
+      html += renderSignalBadge("music", signals.music.intent, 0.85);
+    }
+    // Outfit
+    if (signals.outfit && signals.outfit.active) {
+      html += renderSignalBadge("outfit", signals.outfit.intent, 0.85);
+    }
+    // Campus
+    if (signals.campus && signals.campus.active) {
+      html += renderSignalBadge("campus", signals.campus.location, 0.8);
+    }
+    // Robot
+    if (signals.robot && signals.robot.active) {
+      html += renderSignalBadge("robot", signals.robot.trigger || "explicit", signals.robot.trigger === "implicit" ? 0.6 : 0.85);
+    }
+    // Easter Eggs
+    if (signals.easter_eggs && signals.easter_eggs.length > 0) {
+      for (const egg of signals.easter_eggs) {
+        html += renderSignalBadge("easter_egg", egg, 0.9);
+      }
+    }
+
+    html += `</div></div>`;
+  }
+
+  // === Step 2: State Update ===
+  const stateStep = trace.find(t => t.step === "State Update");
+  if (stateStep && stateStep.data) {
+    html += `
+      <div class="trace-section">
+        <div class="trace-section-title">2. User State Update</div>
+        <div class="trace-state">
+          <div class="trace-stat">Changes: ${stateStep.data.changes ? stateStep.data.changes.length : 0}</div>
+          ${stateStep.data.changes && stateStep.data.changes.length > 0 ? `
+            <ul class="trace-state-list">
+              ${stateStep.data.changes.map(c => `
+                <li>${escapeHtml(c.type)}: ${escapeHtml(JSON.stringify(c))}</li>
+              `).join("")}
+            </ul>
+          ` : '<div class="trace-stat">No state changes this turn.</div>'}
+        </div>
+      </div>
+    `;
+  }
+
+  // === Step 3: Selected Skills ===
+  const skillStep = trace.find(t => t.step === "Skill Selection");
+  if (skillStep && skillStep.data) {
+    html += `
+      <div class="trace-section">
+        <div class="trace-section-title">3. Selected Skills</div>
+        <div class="trace-skills">
+    `;
+    for (const skill of skillStep.data) {
+      const modeColor = skill.mode === "primary" ? "var(--accent-warm)" :
+                        skill.mode === "support" ? "var(--info)" : "var(--text-muted)";
+      html += `
+        <div class="trace-skill-card">
+          <div class="trace-skill-header">
+            <span class="trace-skill-name">${escapeHtml(skill.name)}</span>
+            <span class="trace-skill-mode" style="color: ${modeColor}">${escapeHtml(skill.mode)}</span>
+          </div>
+          <div class="trace-skill-meta">
+            ${escapeHtml(skill.category)} · score: ${skill.score}
+          </div>
+        </div>
+      `;
+    }
+    html += `</div></div>`;
+  }
+
+  // === Step 4: Micro Context Capsules ===
+  const capsuleBlocks = blocks.filter(b => b.type === "mood_signal" || b.type === "skill_hint" || b.type === "scene" || b.type === "habit" || b.type === "state_summary" || b.type === "robot_action_hint");
+  if (capsuleBlocks.length > 0) {
+    html += `
+      <div class="trace-section">
+        <div class="trace-section-title">4. Micro Context Capsules (${capsuleBlocks.length})</div>
+        <div class="trace-capsules">
+    `;
+    for (const b of capsuleBlocks) {
+      html += `
+        <div class="trace-capsule">
+          <div class="trace-capsule-header">
+            <span class="trace-capsule-type">${escapeHtml(b.type)}</span>
+            <span class="trace-capsule-tokens">${b.tokens} tokens</span>
+          </div>
+          <div class="trace-capsule-content">${escapeHtml(b.content)}</div>
+        </div>
+      `;
+    }
+    html += `</div></div>`;
+  }
+
+  // === Step 5: Token Budget ===
+  html += `
+    <div class="trace-section">
+      <div class="trace-section-title">5. Token Budget</div>
+      <div class="trace-stat">
+        Used: ${tokenSummary.used_tokens || 0} / ${tokenSummary.max_input_tokens || 9000}
+      </div>
+      <div class="trace-stat">
+        Removed: ${(tokenSummary.removed_blocks || []).length} blocks
+      </div>
+    </div>
+  `;
+
+  // === All Blocks ===
+  html += `
+    <div class="trace-section">
+      <div class="trace-section-title">All Context Blocks (${blocks.length})</div>
+      <div class="trace-blocks">
+  `;
+  for (const b of blocks) {
+    html += `
+      <div class="trace-block">
+        <div class="trace-block-header">
+          <span class="trace-block-title">${escapeHtml(b.title)}</span>
+          <span class="trace-block-meta">${escapeHtml(b.type)} · priority ${b.priority} · ${b.tokens} tokens</span>
+        </div>
+        <div class="trace-block-reason">${escapeHtml(b.reason || "")}</div>
+        <details class="trace-block-details">
+          <summary>Show content</summary>
+          <pre class="trace-pre">${escapeHtml(b.content)}</pre>
+        </details>
+      </div>
+    `;
+  }
+  html += `</div></div>`;
+
+  body.innerHTML = html;
+}
+
+function renderSignalBadge(type, label, confidence) {
+  const confidencePercent = Math.round((confidence || 0) * 100);
+  const typeColors = {
+    mood: "#c67d5e",
+    food: "#8aaa8c",
+    music: "#7a9ab0",
+    outfit: "#c99a4e",
+    campus: "#b08d6a",
+    robot: "#a080a0",
+    easter_egg: "#e07070"
+  };
+  const color = typeColors[type] || "#888";
+
+  return `
+    <div class="trace-signal-badge" style="border-color: ${color}; background: ${color}12;">
+      <span class="trace-signal-type" style="color: ${color}">${escapeHtml(type)}</span>
+      <span class="trace-signal-label">${escapeHtml(label)}</span>
+      <span class="trace-signal-confidence">${confidencePercent}%</span>
+    </div>
+  `;
+}
+
+// Context Engine toggles
+const contextEngineV2Toggle = document.getElementById("contextEngineV2Toggle");
+const showContextTraceToggle = document.getElementById("showContextTraceToggle");
+
+contextEngineV2Toggle?.addEventListener("change", (e) => {
+  state.contextEngineV2 = e.target.checked;
+});
+
+showContextTraceToggle?.addEventListener("change", (e) => {
+  state.showContextTrace = e.target.checked;
+  if (!state.showContextTrace) {
+    const panel = document.getElementById("contextTracePanel");
+    if (panel) panel.style.display = "none";
+  } else if (state.lastContextDebug) {
+    renderContextTrace(state.lastContextDebug);
+  }
+});
+
 document.querySelectorAll(".demo-chip").forEach((button) => {
   button.addEventListener("click", async () => {
     const mode = button.dataset.mode;
@@ -2018,6 +2273,72 @@ function escapeHtml(text) {
     .replaceAll("'", "&#39;");
 }
 
+// ---- MCP Tool Result Rendering ----
+function renderPlaylistPlayer(playlist) {
+  if (!playlist || !playlist.tracks) return;
+
+  const container = document.createElement("div");
+  container.className = "playlist-player";
+
+  let html = `
+    <div class="playlist-header">
+      <div class="playlist-icon">🎵</div>
+      <div class="playlist-info">
+        <div class="playlist-name">${escapeHtml(playlist.playlist_name || "歌单")}</div>
+        <div class="playlist-intro">${escapeHtml(playlist.dj_intro || "为你推荐")}</div>
+      </div>
+    </div>
+    <div class="playlist-tracks">
+  `;
+
+  for (const track of playlist.tracks) {
+    html += `
+      <div class="playlist-track" data-artist="${escapeHtml(track.artist)}" data-title="${escapeHtml(track.title)}">
+        <div class="track-info">
+          <div class="track-title">${escapeHtml(track.title)}</div>
+          <div class="track-artist">${escapeHtml(track.artist)} · ${escapeHtml(track.duration || "")}</div>
+        </div>
+        <button class="track-play-btn" onclick="playTrack('${escapeHtml(track.artist)}', '${escapeHtml(track.title)}')">
+          ▶
+        </button>
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+
+  // Insert after the last assistant message
+  const lastAssistantMsg = chatStream.querySelector(".message.assistant:last-child");
+  if (lastAssistantMsg) {
+    lastAssistantMsg.appendChild(container);
+  } else {
+    chatStream.appendChild(container);
+  }
+}
+
+// Global function for play button
+window.playTrack = function(artist, title) {
+  // For demo purposes, show a toast notification instead of actual playback
+  showToast(`正在播放: ${artist} - ${title}`);
+};
+
+function showToast(message) {
+  const toast = document.createElement("div");
+  toast.className = "toast-notification";
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add("show");
+  }, 10);
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => {
+      document.body.removeChild(toast);
+    }, 300);
+  }, 3000);
+}
+
 refreshState().catch((error) => {
   alert(error.message);
 });
@@ -2046,6 +2367,32 @@ window.setInterval(() => {
     refreshState().catch(() => {});
   }
 }, 1200);
+
+// ---- SSE for real-time memory updates ----
+function connectEventSource() {
+  const evtSource = new EventSource("/api/events");
+  evtSource.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      if (payload.type === "memory_updates") {
+        renderMemoryPanel({
+          memory_panel: payload.data.memory_panel,
+          updates: payload.data.updates,
+          memory_preview: "记忆已实时更新",
+          memory_used: true,
+          memory_used_count: payload.data.updates.length,
+        });
+      }
+    } catch (_error) {
+      // Ignore parse errors
+    }
+  };
+  evtSource.onerror = () => {
+    // Reconnect after a delay
+    setTimeout(connectEventSource, 3000);
+  };
+}
+connectEventSource();
 
 window.setInterval(() => {
   refreshCharacterCards().catch(() => {});

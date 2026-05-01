@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=2" />
   </head>
   <body>
     <div class="app-shell">
@@ -43,23 +43,49 @@
         </div>
       </header>
 
-      <div class="demo-toolbar">
-        <span class="toolbar-label">推荐演示</span>
+      <div class="demo-toolbar" id="contextDemoPanel">
+        <div class="demo-toolbar-header">
+          <span class="toolbar-label">Companion Runtime Brain</span>
+          <label class="context-engine-toggle">
+            <input type="checkbox" id="contextEngineV2Toggle" checked />
+            <span>启用 Companion Runtime</span>
+          </label>
+          <label class="context-engine-toggle">
+            <input type="checkbox" id="showContextTraceToggle" checked />
+            <span>显示运行时状态</span>
+          </label>
+        </div>
         <div class="demo-buttons">
-          <button class="demo-chip" data-mode="send" data-text="我叫小雨，是一名插画师，住在上海。我喜欢喝拿铁。">
-            初次认识用户
+          <!-- 学习场景 -->
+          <button class="demo-chip" data-mode="send" data-demo="exam_anxiety" data-text="我明天有线性代数考试，但我现在完全学不进去，越想越焦虑。">
+            考试焦虑
           </button>
-          <button class="demo-chip" data-mode="send" data-text="其实我上个月搬到杭州了，现在更喜欢美式。">
-            用户信息变化
+          <!-- 生活场景 -->
+          <button class="demo-chip" data-mode="send" data-demo="music_recommendation" data-text="今天有点闷，想听点不吵但是能陪我缓一缓的歌。">
+            低电量歌单
           </button>
-          <button class="demo-chip" data-mode="resetThenSend" data-text="你还记得我现在住在哪里，喜欢喝什么吗？">
-            新会话后追问
+          <button class="demo-chip" data-mode="send" data-demo="outfit_advice" data-text="明天要去见同学，想穿得自然一点，但又不想太随便。">
+            明天穿什么
           </button>
-          <button class="demo-chip" data-mode="send" data-text="我现在已经再婚了。">
-            关系状态更新
+          <button class="demo-chip" data-mode="send" data-demo="food_recommendation" data-text="今晚不知道吃什么，有点饿，但又不想吃太撑。">
+            晚饭吃什么
           </button>
-          <button class="demo-chip" data-mode="send" data-text="我现在不喜欢热闹场合了，更喜欢安静散步。">
-            偏好更新
+          <button class="demo-chip" data-mode="send" data-demo="diet_routine" data-text="我最近饮食很乱，经常不吃早饭，晚上又乱吃。">
+            饮食节奏修复
+          </button>
+          <button class="demo-chip" data-mode="send" data-demo="campus_place" data-text="我不想去图书馆，太压抑了。">
+            校园地点
+          </button>
+          <!-- 彩蛋场景 -->
+          <button class="demo-chip" data-mode="send" data-demo="lab_easter_egg" data-text="我又要去机房调代码了，感觉今晚又要被环境变量折磨。">
+            机房彩蛋
+          </button>
+          <!-- 情绪场景 -->
+          <button class="demo-chip" data-mode="send" data-demo="low_battery" data-text="今天不想说话，有点累。">
+            低电量陪伴
+          </button>
+          <button class="demo-chip" data-mode="send" data-demo="casual_chat" data-text="今天有点无聊，想随便聊两句。">
+            普通闲聊
           </button>
         </div>
       </div>
@@ -141,6 +167,18 @@
               </button>
               <button class="btn btn-primary send-button" id="sendBtn">发送</button>
             </div>
+          </div>
+        </section>
+
+        <section class="context-trace-panel" id="contextTracePanel" style="display: none;">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <span class="panel-kicker">Debug</span>
+              <h2>上下文加载过程</h2>
+            </div>
+          </div>
+          <div class="context-trace-body" id="contextTraceBody">
+            <p class="muted">发送消息并启用"显示上下文追踪"后，此处将展示 Context Engine 的完整处理流程。</p>
           </div>
         </section>
 
@@ -299,6 +337,6 @@
       </section>
     </div>
 
-    <script src="/app.js"></script>
+    <script src="/app.js?v=2"></script>
   </body>
 </html>

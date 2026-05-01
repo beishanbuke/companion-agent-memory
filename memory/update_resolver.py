@@ -38,6 +38,10 @@ Decision rules:
 - Use "noop" when the candidate only paraphrases the old memory, lacks enough evidence, or should not be stored.
 - Prefer the user's original language in resolved_value.
 
+Context-aware hints:
+- The extractor may have suggested an operation based on current memory profile. Respect it unless you see clear reasons to override.
+- For location/school/job changes, "update" is correct when there's an existing value.
+
 Output JSON only. No markdown fences.
 """
 

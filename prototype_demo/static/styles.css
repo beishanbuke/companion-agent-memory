@@ -1935,3 +1935,426 @@ button:disabled,
     font-size: 18px;
   }
 }
+
+/* === Context Engine Demo Panel === */
+.demo-toolbar-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.context-engine-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.context-engine-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-warm);
+}
+
+/* === Context Trace Panel === */
+.context-trace-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  margin: 0 var(--space-5) var(--space-5);
+  overflow: hidden;
+}
+
+.context-trace-body {
+  padding: var(--space-4);
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.trace-section {
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.trace-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.trace-section-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-3);
+}
+
+.trace-pre {
+  background: var(--bg-inset);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-secondary);
+}
+
+.trace-stat {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-1);
+}
+
+.trace-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.trace-block {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.trace-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.trace-block-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.trace-block-meta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.trace-block-reason {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-2);
+}
+
+.trace-block-details {
+  font-size: 12px;
+}
+
+.trace-block-details summary {
+  color: var(--accent-warm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.trace-block-details summary:hover {
+  color: var(--accent-warm-hover);
+}
+
+.trace-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.trace-step {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.trace-step-header {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.trace-step-detail {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* === Signal Badges === */
+.trace-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.trace-signal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid;
+  font-size: 12px;
+}
+
+.trace-signal-type {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+
+.trace-signal-label {
+  color: var(--text-primary);
+}
+
+.trace-signal-confidence {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  background: var(--bg-inset);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* === Skill Cards === */
+.trace-skills {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.trace-skill-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.trace-skill-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-1);
+}
+
+.trace-skill-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.trace-skill-mode {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.trace-skill-meta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* === Capsules === */
+.trace-capsules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.trace-capsule {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.trace-capsule-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-1);
+}
+
+.trace-capsule-type {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-warm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.trace-capsule-tokens {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  background: var(--bg-inset);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.trace-capsule-content {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* === State List === */
+.trace-state-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-2) 0 0;
+}
+
+.trace-state-list li {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.trace-state-list li:last-child {
+  border-bottom: none;
+}
+
+/* === Playlist Player === */
+.playlist-player {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.playlist-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.playlist-icon {
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-warm);
+  border-radius: var(--radius-md);
+}
+
+.playlist-info {
+  flex: 1;
+}
+
+.playlist-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.playlist-intro {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.playlist-tracks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.playlist-track {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  transition: all 160ms ease;
+}
+
+.playlist-track:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--accent-warm-light);
+}
+
+.track-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.track-title {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.track-artist {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+.track-play-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent-warm);
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 160ms ease;
+  flex-shrink: 0;
+}
+
+.track-play-btn:hover {
+  background: var(--accent-warm-light);
+  transform: scale(1.05);
+}
+
+/* === Toast Notification === */
+.toast-notification {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--text-primary);
+  color: white;
+  padding: 12px 24px;
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: var(--shadow-card);
+  z-index: 1000;
+  opacity: 0;
+  transition: all 300ms ease;
+}
+
+.toast-notification.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}

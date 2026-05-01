@@ -67,7 +67,7 @@ class SkillRegistry:
             tier=2,
             situations=["music_companion"],
             requires_mcp=True,
-            mcp_tools=["apple_music.search", "apple_music.play"],
+            mcp_tools=["radio_dj.create_playlist", "radio_dj.get_artist_info", "radio_dj.suggest_music_for_scene", "radio_dj.play_track"],
         ))
         self.register(Skill(
             name="study-coach",

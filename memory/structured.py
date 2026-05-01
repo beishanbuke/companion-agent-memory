@@ -524,11 +524,37 @@ class StructuredLongTermMemory(BaseMemory):
 
         return self._dedupe_candidates(self._expand_preference_candidates(merged_candidates))
 
+    def _format_existing_memory_for_extractor(self) -> str:
+        """Format current memory snapshot for the LLM extractor context."""
+        parts = []
+        
+        # Persona slots
+        if self._persona_slots:
+            parts.append("Current persona (user facts):")
+            for key, slot in self._persona_slots.items():
+                parts.append(f"  {key}: {slot.value}")
+        
+        # Preference slots
+        if self._preference_slots:
+            parts.append("Current preferences:")
+            for key, slot in self._preference_slots.items():
+                parts.append(f"  {key}: {slot.value}")
+        
+        # Recent events (last 5)
+        recent_events = [m for m in self._memories if m.status == "active"][-5:]
+        if recent_events:
+            parts.append("Recent events:")
+            for event in recent_events:
+                parts.append(f"  - {event.summary}")
+        
+        return "\n".join(parts) if parts else "No existing memory."
+
     async def _extract_candidates_with_llm(self, content: str) -> list[MemoryCandidate]:
         if self._llm_extractor is None:
             return []
 
-        raw_candidates = await self._llm_extractor.extract(content)
+        existing_memory = self._format_existing_memory_for_extractor()
+        raw_candidates = await self._llm_extractor.extract(content, existing_memory)
         candidates: list[MemoryCandidate] = []
         for item in raw_candidates:
             memory_type = str(item.get("memory_type", "")).strip().lower()
@@ -1383,6 +1409,9 @@ class StructuredLongTermMemory(BaseMemory):
         existing: SlotValue | None,
     ) -> MemoryWriteDecision:
         content = candidate.content
+        # Check LLM extractor's suggested operation first
+        extractor_operation = candidate.metadata.get("operation", "").lower() if candidate.metadata else ""
+        
         if self._looks_like_memory_probe(content):
             return MemoryWriteDecision(decision="noop", reason="memory_probe")
         if self._is_invalid_slot_value(candidate.slot_key, candidate.value):
@@ -1396,6 +1425,19 @@ class StructuredLongTermMemory(BaseMemory):
                 decision="noop",
                 resolved_value=existing.value,
                 reason="same_value",
+            )
+        # Respect extractor's operation suggestion
+        if extractor_operation == "update" and existing is not None:
+            return MemoryWriteDecision(
+                decision="update",
+                resolved_value=candidate.value,
+                reason="extractor_suggested_update",
+            )
+        if extractor_operation == "add" and existing is None:
+            return MemoryWriteDecision(
+                decision="add",
+                resolved_value=candidate.value,
+                reason="extractor_suggested_add",
             )
         if existing is None:
             return MemoryWriteDecision(
