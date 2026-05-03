@@ -56,36 +56,21 @@
           </label>
         </div>
         <div class="demo-buttons">
-          <!-- 学习场景 -->
-          <button class="demo-chip" data-mode="send" data-demo="exam_anxiety" data-text="我明天有线性代数考试，但我现在完全学不进去，越想越焦虑。">
-            😵 明天考试但学不进去
+          <!-- 场景1: 高压切闲聊 -> 再回主线 -->
+          <button class="demo-chip" data-mode="send" data-demo="high_pressure_switch" data-text="我明天要交论文初稿，现在只写了500字，根本写不完，我要崩溃了。">
+            🔄 高压切闲聊→回主线
           </button>
-          <!-- 生活场景 -->
-          <button class="demo-chip" data-mode="send" data-demo="music_recommendation" data-text="今天有点闷，想听点不吵但是能陪我缓一缓的歌。">
-            🎧 想听点低电量的歌
+          <!-- 场景2: 今日复盘 -->
+          <button class="demo-chip" data-mode="send" data-demo="daily_review" data-text="今天过得有点乱，帮我复盘一下今天发生了什么。">
+            📋 今日复盘
           </button>
-          <button class="demo-chip" data-mode="send" data-demo="outfit_advice" data-text="明天要去见同学，想穿得自然一点，但又不想太随便。">
-            👕 明天见同学穿什么
+          <!-- 场景3: 本周复盘 -->
+          <button class="demo-chip" data-mode="send" data-demo="weekly_review" data-text="这周感觉过得好快，但又好像没做几件事，帮我梳理一下这周。">
+            📅 本周复盘
           </button>
-          <button class="demo-chip" data-mode="send" data-demo="food_recommendation" data-text="今晚不知道吃什么，有点饿，但又不想吃太撑。">
-            🍜 晚饭不知道吃什么
-          </button>
-          <button class="demo-chip" data-mode="send" data-demo="diet_routine" data-text="我最近饮食很乱，经常不吃早饭，晚上又乱吃。">
-            🥣 最近饮食乱了
-          </button>
-          <button class="demo-chip" data-mode="send" data-demo="campus_place" data-text="我不想去图书馆，太压抑了。">
-            📍 不想在图书馆待着
-          </button>
-          <!-- 彩蛋场景 -->
-          <button class="demo-chip" data-mode="send" data-demo="lab_easter_egg" data-text="我又要去机房调代码了，感觉今晚又要被环境变量折磨。">
-            💻 又要去机房调环境
-          </button>
-          <!-- 情绪场景 -->
-          <button class="demo-chip" data-mode="send" data-demo="low_battery" data-text="今天不想说话，有点累。">
-            🔋 今天不想说话
-          </button>
-          <button class="demo-chip" data-mode="send" data-demo="casual_chat" data-text="今天有点无聊，想随便聊两句。">
-            💬 随便聊两句
+          <!-- 场景4: 倾诉后轻推一步 -->
+          <button class="demo-chip" data-mode="send" data-demo="vent_then_push" data-text="我觉得我最近好失败，什么都做不好，真的好累。">
+            💬 倾诉后轻推一步
           </button>
         </div>
       </div>
@@ -258,6 +243,14 @@
           <section class="memory-section">
             <h3>Conflict Updates</h3>
             <div class="timeline" id="conflictTimeline"></div>
+          </section>
+
+          <section class="memory-section" id="reviewSummarySection" style="display: none;">
+            <h3>复盘摘要</h3>
+            <div class="review-summary-card" id="reviewSummaryCard">
+              <div class="review-summary-scope" id="reviewSummaryScope"></div>
+              <div class="review-summary-content" id="reviewSummaryContent"></div>
+            </div>
           </section>
 
           <section class="memory-section">

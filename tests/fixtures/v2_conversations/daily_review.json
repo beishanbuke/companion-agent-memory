@@ -1,0 +1,37 @@
+[
+  {
+    "scenario": "daily_review",
+    "description": "今日复盘",
+    "turns": [
+      {
+        "user": "今天过得有点乱，帮我复盘一下今天发生了什么。",
+        "expected": {
+          "policy_goal": "review_day",
+          "target_state": "review_reflection",
+          "allow_recap": true,
+          "review_summary_scope": "day"
+        }
+      },
+      {
+        "user": "早上去了图书馆但效率很低，下午一直在刷手机，晚上吃了外卖现在有点后悔。",
+        "expected": {
+          "policy_goal": "review_day",
+          "review_summary_structured": {
+            "has_key_events": true,
+            "has_blockers": true
+          }
+        }
+      },
+      {
+        "user": "嗯，确实是刷手机太久了。明天怎么改善？",
+        "expected": {
+          "policy_goal": "push_one_step",
+          "allow_advice": true,
+          "review_summary_structured": {
+            "has_next_actions": true
+          }
+        }
+      }
+    ]
+  }
+]

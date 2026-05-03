@@ -1,0 +1,38 @@
+[
+  {
+    "scenario": "high_pressure_switch",
+    "description": "高压切闲聊->再回主线",
+    "turns": [
+      {
+        "user": "我明天要交论文初稿，现在只写了500字，根本写不完，我要崩溃了。",
+        "expected": {
+          "policy_goal": "stabilize",
+          "target_state": "support_crisis",
+          "allow_advice": false,
+          "allow_humor": false
+        }
+      },
+      {
+        "user": "算了不想说这个了，你最近有看什么好玩的剧吗？",
+        "expected": {
+          "policy_goal": "stay_light",
+          "target_state": "light_chat",
+          "pull_main_thread": false
+        }
+      },
+      {
+        "user": "其实还是有点焦虑... 你觉得我现在应该先做哪部分？",
+        "expected": {
+          "policy_goal_in": ["push_one_step", "resume_main_thread"],
+          "allow_advice": true
+        }
+      },
+      {
+        "user": "好的，那我先把文献综述整理出来。",
+        "expected": {
+          "target_state_in": ["task_execution", "task_done"]
+        }
+      }
+    ]
+  }
+]

@@ -42,11 +42,21 @@ class Thread:
     
     # 上下文
     resume_tokens: str = ""  # 快速恢复摘要
+    resume_capsule: dict[str, Any] = field(default_factory=dict)
     last_active_turn: int = 0
     created_turn: int = 0
-    
+
     # 元数据
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ThreadSessionState:
+    active_thread: Thread | None = None
+    background_threads: list[Thread] = field(default_factory=list)
+    dormant_threads: list[Thread] = field(default_factory=list)
+    resolved_threads: list[Thread] = field(default_factory=list)
+    turn_counter: int = 0
 
 
 class ThreadManager:
@@ -63,16 +73,34 @@ class ThreadManager:
     ]
     
     def __init__(self):
-        self.active_thread: Thread | None = None
-        self.background_threads: list[Thread] = []
-        self.dormant_threads: list[Thread] = []
-        self._turn_counter = 0
-        self._max_background = 3  # 最多保留3个后台主线
+        self._sessions: dict[str, ThreadSessionState] = {}
+        self._default_session = "default"
+        self._max_background = 2
+        self._max_dormant = 8
     
-    def _next_turn(self) -> int:
+    def _get_or_create_session(self, session_id: str = "") -> ThreadSessionState:
+        sid = session_id or self._default_session
+        if sid not in self._sessions:
+            self._sessions[sid] = ThreadSessionState()
+        return self._sessions[sid]
+    
+    @property
+    def active_thread(self) -> Thread | None:
+        return self._get_or_create_session().active_thread
+    
+    @property
+    def background_threads(self) -> list[Thread]:
+        return self._get_or_create_session().background_threads
+    
+    @property
+    def dormant_threads(self) -> list[Thread]:
+        return self._get_or_create_session().dormant_threads
+
+    def _next_turn(self, session_id: str = "") -> int:
         """递增轮次计数器。"""
-        self._turn_counter += 1
-        return self._turn_counter
+        session = self._get_or_create_session(session_id)
+        session.turn_counter += 1
+        return session.turn_counter
     
     def create_thread(
         self,
@@ -81,10 +109,47 @@ class ThreadManager:
         urgency_score: float = 0.5,
         emotion_score: float = 0.5,
         resume_tokens: str = "",
+        metadata: dict[str, Any] | None = None,
+        session_id: str = "",
     ) -> Thread:
         """创建新主线。"""
+        session = self._get_or_create_session(session_id)
+
+        # 优先恢复已有线程，避免同一主线不断新建副本。
+        existing = None
+        candidates = []
+        if session.active_thread:
+            candidates.append(session.active_thread)
+        candidates.extend(session.background_threads)
+        candidates.extend(session.dormant_threads)
+        for thread in candidates:
+            if thread.status == "resolved":
+                continue
+            if thread.name == name or (thread.thread_type == thread_type and thread_type != "light_chat"):
+                existing = thread
+                break
+
+        if existing:
+            existing.urgency_score = max(existing.urgency_score, urgency_score)
+            existing.emotion_score = max(existing.emotion_score, emotion_score)
+            if resume_tokens:
+                existing.resume_tokens = resume_tokens
+            if metadata:
+                existing.metadata.update(metadata)
+            existing.resume_capsule = self._build_resume_capsule(
+                name=existing.name,
+                thread_type=existing.thread_type,
+                urgency_score=existing.urgency_score,
+                emotion_score=existing.emotion_score,
+                resume_tokens=existing.resume_tokens,
+                metadata=existing.metadata,
+            )
+            self.switch_to_thread(existing.id, session_id)
+            return existing
+
+        turn = self._next_turn(session_id)
         thread = Thread(
-            id=f"thread_{self._turn_counter}_{int(time.time())}",
+            id=f"thread_{turn}_{int(time.time())}",
             name=name,
             thread_type=thread_type,
             status="foreground",
@@ -94,18 +159,26 @@ class ThreadManager:
             resumability_score=0.8,
             user_focus_score=1.0,
             resume_tokens=resume_tokens,
-            last_active_turn=self._turn_counter,
-            created_turn=self._turn_counter,
+            resume_capsule=self._build_resume_capsule(
+                name=name,
+                thread_type=thread_type,
+                urgency_score=urgency_score,
+                emotion_score=emotion_score,
+                resume_tokens=resume_tokens,
+            ),
+            last_active_turn=turn,
+            created_turn=turn,
+            metadata=metadata or {},
         )
         
         # 如果已有前台主线，将其降级到后台
-        if self.active_thread and self.active_thread.status == "foreground":
-            self.active_thread.status = "background"
-            self.active_thread.recency_score *= 0.8  # 衰减
-            self.background_threads.append(self.active_thread)
-            self._trim_background()
+        if session.active_thread and session.active_thread.status == "foreground":
+            session.active_thread.status = "background"
+            session.active_thread.recency_score *= 0.8
+            session.background_threads.append(session.active_thread)
+            self._trim_background(session_id)
         
-        self.active_thread = thread
+        session.active_thread = thread
         return thread
     
     def update_thread(
@@ -115,9 +188,12 @@ class ThreadManager:
         emotion_score: float | None = None,
         user_focus_score: float | None = None,
         resume_tokens: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        session_id: str = "",
     ) -> Thread | None:
         """更新主线状态。"""
-        thread = self._find_thread(thread_id)
+        session = self._get_or_create_session(session_id)
+        thread = self._find_thread(thread_id, session_id)
         if not thread:
             return None
         
@@ -129,66 +205,80 @@ class ThreadManager:
             thread.user_focus_score = user_focus_score
         if resume_tokens is not None:
             thread.resume_tokens = resume_tokens
+        if metadata:
+            thread.metadata.update(metadata)
+        thread.resume_capsule = self._build_resume_capsule(
+            name=thread.name,
+            thread_type=thread.thread_type,
+            urgency_score=thread.urgency_score,
+            emotion_score=thread.emotion_score,
+            resume_tokens=thread.resume_tokens,
+            metadata=thread.metadata,
+        )
         
-        thread.last_active_turn = self._turn_counter
+        thread.last_active_turn = session.turn_counter
         thread.recency_score = 1.0  # 重置活跃度
         
         return thread
     
-    def switch_to_thread(self, thread_id: str) -> Thread | None:
+    def switch_to_thread(self, thread_id: str, session_id: str = "") -> Thread | None:
         """切换到指定主线。"""
-        target = self._find_thread(thread_id)
+        session = self._get_or_create_session(session_id)
+        target = self._find_thread(thread_id, session_id)
         if not target:
             return None
         
         # 当前前台降级
-        if self.active_thread:
-            self.active_thread.status = "background"
-            self.active_thread.recency_score *= 0.8
-            if self.active_thread not in self.background_threads:
-                self.background_threads.append(self.active_thread)
+        if session.active_thread:
+            session.active_thread.status = "background"
+            session.active_thread.recency_score *= 0.8
+            if session.active_thread not in session.background_threads:
+                session.background_threads.append(session.active_thread)
         
         # 目标升级
         target.status = "foreground"
         target.recency_score = 1.0
-        target.last_active_turn = self._turn_counter
+        target.last_active_turn = session.turn_counter
         
         # 从后台列表移除
-        if target in self.background_threads:
-            self.background_threads.remove(target)
-        if target in self.dormant_threads:
-            self.dormant_threads.remove(target)
+        if target in session.background_threads:
+            session.background_threads.remove(target)
+        if target in session.dormant_threads:
+            session.dormant_threads.remove(target)
         
-        self.active_thread = target
-        self._trim_background()
+        session.active_thread = target
+        self._trim_background(session_id)
         return target
     
-    def resolve_thread(self, thread_id: str) -> bool:
+    def resolve_thread(self, thread_id: str, session_id: str = "") -> bool:
         """标记主线为已解决。"""
-        thread = self._find_thread(thread_id)
+        session = self._get_or_create_session(session_id)
+        thread = self._find_thread(thread_id, session_id)
         if not thread:
             return False
         
         thread.status = "resolved"
         
-        if thread == self.active_thread:
-            self.active_thread = None
+        if thread == session.active_thread:
+            session.active_thread = None
             # 尝试恢复最高分的后台主线
-            self._promote_best_background()
-        elif thread in self.background_threads:
-            self.background_threads.remove(thread)
-        elif thread in self.dormant_threads:
-            self.dormant_threads.remove(thread)
+            self._promote_best_background(session_id)
+        elif thread in session.background_threads:
+            session.background_threads.remove(thread)
+        elif thread in session.dormant_threads:
+            session.dormant_threads.remove(thread)
+        session.resolved_threads.append(thread)
         
         return True
     
-    def score_threads(self) -> list[tuple[Thread, float]]:
+    def score_threads(self, session_id: str = "") -> list[tuple[Thread, float]]:
         """计算所有主线的综合分数并排序。"""
+        session = self._get_or_create_session(session_id)
         all_threads = []
-        if self.active_thread:
-            all_threads.append(self.active_thread)
-        all_threads.extend(self.background_threads)
-        all_threads.extend(self.dormant_threads)
+        if session.active_thread:
+            all_threads.append(session.active_thread)
+        all_threads.extend(session.background_threads)
+        all_threads.extend(session.dormant_threads)
         
         scored = []
         for thread in all_threads:
@@ -205,34 +295,38 @@ class ThreadManager:
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored
     
-    def get_active_thread_summary(self) -> dict[str, Any]:
+    def get_active_thread_summary(self, session_id: str = "") -> dict[str, Any]:
         """获取前台主线摘要。"""
-        if not self.active_thread:
+        session = self._get_or_create_session(session_id)
+        if not session.active_thread:
             return {}
         
         return {
-            "id": self.active_thread.id,
-            "name": self.active_thread.name,
-            "type": self.active_thread.thread_type,
-            "urgency": self.active_thread.urgency_score,
-            "emotion": self.active_thread.emotion_score,
-            "resume_tokens": self.active_thread.resume_tokens,
+            "id": session.active_thread.id,
+            "name": session.active_thread.name,
+            "type": session.active_thread.thread_type,
+            "urgency": session.active_thread.urgency_score,
+            "emotion": session.active_thread.emotion_score,
+            "resume_tokens": session.active_thread.resume_tokens,
+            "resume_capsule": session.active_thread.resume_capsule,
         }
     
-    def get_background_summaries(self) -> list[dict[str, Any]]:
+    def get_background_summaries(self, session_id: str = "") -> list[dict[str, Any]]:
         """获取后台主线摘要列表。"""
+        session = self._get_or_create_session(session_id)
         summaries = []
-        for thread in self.background_threads:
+        for thread in session.background_threads[: self._max_background]:
             summaries.append({
                 "id": thread.id,
                 "name": thread.name,
                 "type": thread.thread_type,
                 "urgency": thread.urgency_score,
                 "resume_tokens": thread.resume_tokens[:100],
+                "resume_capsule": thread.resume_capsule,
             })
         return summaries
     
-    def should_pull_main_thread(self) -> tuple[bool, str]:
+    def should_pull_main_thread(self, session_id: str = "") -> tuple[bool, str]:
         """判断是否应该拉回主线。
         
         条件：
@@ -243,20 +337,35 @@ class ThreadManager:
         Returns:
             (是否拉回, 目标主线ID)
         """
-        if not self.active_thread or self.active_thread.thread_type != "light_chat":
+        session = self._get_or_create_session(session_id)
+        if not session.active_thread or session.active_thread.thread_type != "light_chat":
             return False, ""
         
         # 找后台中分数最高的非 light_chat 主线
         best_thread = None
         best_score = 0.0
         
-        for thread in self.background_threads:
+        for thread in session.background_threads:
             if thread.thread_type == "light_chat":
                 continue
+            
+            # === action_resume_score: 基于复盘 next_actions 的恢复优先级 ===
+            action_resume_score = 0.0
+            capsule = thread.resume_capsule or {}
+            review_actions = capsule.get("review_next_actions", [])
+            last_review_at = capsule.get("last_review_at", 0)
+            if review_actions:
+                # 有明确的 next_actions，提高恢复优先级
+                action_resume_score = 0.3
+                # 如果复盘比较新（24小时内），额外加分
+                if last_review_at and (time.time() - last_review_at) < 86400:
+                    action_resume_score += 0.15
+            
             score = (
-                thread.urgency_score * 0.4 +
-                thread.emotion_score * 0.3 +
-                thread.resumability_score * 0.3
+                thread.urgency_score * 0.35 +
+                thread.emotion_score * 0.25 +
+                thread.resumability_score * 0.25 +
+                action_resume_score
             )
             if score > best_score and score > 0.6:
                 best_score = score
@@ -267,36 +376,49 @@ class ThreadManager:
         
         return False, ""
     
-    def _find_thread(self, thread_id: str) -> Thread | None:
+    def _find_thread(self, thread_id: str, session_id: str = "") -> Thread | None:
         """查找主线。"""
-        if self.active_thread and self.active_thread.id == thread_id:
-            return self.active_thread
+        session = self._get_or_create_session(session_id)
+        if session.active_thread and session.active_thread.id == thread_id:
+            return session.active_thread
         
-        for thread in self.background_threads:
+        for thread in session.background_threads:
             if thread.id == thread_id:
                 return thread
         
-        for thread in self.dormant_threads:
+        for thread in session.dormant_threads:
             if thread.id == thread_id:
                 return thread
         
         return None
     
-    def _trim_background(self) -> None:
+    def _trim_background(self, session_id: str = "") -> None:
         """修剪后台主线列表，超出的降级为 dormant。"""
-        while len(self.background_threads) > self._max_background:
-            # 找分数最低的降级
-            oldest = min(self.background_threads, key=lambda t: t.last_active_turn)
-            oldest.status = "dormant"
-            self.background_threads.remove(oldest)
-            self.dormant_threads.append(oldest)
+        session = self._get_or_create_session(session_id)
+        while len(session.background_threads) > self._max_background:
+            lowest = min(
+                session.background_threads,
+                key=lambda t: (
+                    t.urgency_score * 0.35 +
+                    t.emotion_score * 0.25 +
+                    t.recency_score * 0.2 +
+                    t.user_focus_score * 0.2
+                ),
+            )
+            lowest.status = "dormant"
+            session.background_threads.remove(lowest)
+            session.dormant_threads.append(lowest)
+        while len(session.dormant_threads) > self._max_dormant:
+            session.dormant_threads.sort(key=lambda t: t.last_active_turn)
+            session.dormant_threads.pop(0)
     
-    def _promote_best_background(self) -> None:
+    def _promote_best_background(self, session_id: str = "") -> None:
         """提升最佳后台主线为前台。"""
-        if not self.background_threads:
+        session = self._get_or_create_session(session_id)
+        if not session.background_threads:
             return
         
-        best = max(self.background_threads, key=lambda t: (
+        best = max(session.background_threads, key=lambda t: (
             t.urgency_score * 0.4 +
             t.emotion_score * 0.3 +
             t.recency_score * 0.3
@@ -304,8 +426,8 @@ class ThreadManager:
         
         best.status = "foreground"
         best.recency_score = 1.0
-        self.background_threads.remove(best)
-        self.active_thread = best
+        session.background_threads.remove(best)
+        session.active_thread = best
     
     def detect_topic_shift(
         self,
@@ -318,20 +440,64 @@ class ThreadManager:
             (是否切换, 新话题类型)
         """
         if not previous_intent:
-            return True, current_intent.task_category
+            seed = (getattr(current_intent, "thread_candidates", []) or [])
+            return True, seed[0] if seed else current_intent.task_category
+
+        shift_type = getattr(current_intent, "topic_shift_type", "none")
+        if shift_type == "return_to_thread":
+            seed = (getattr(current_intent, "thread_candidates", []) or [])
+            if seed:
+                return True, seed[0]
+        if shift_type == "new_thread":
+            seed = (getattr(current_intent, "thread_candidates", []) or [])
+            if seed:
+                return True, seed[0]
         
         # 简单规则：任务类别变化且持续2轮
         if current_intent.task_category != previous_intent.task_category:
             if current_intent.task_category != "none":
                 return True, current_intent.task_category
+
+        current_candidates = getattr(current_intent, "thread_candidates", []) or []
+        previous_candidates = getattr(previous_intent, "thread_candidates", []) or []
+        if current_candidates and current_candidates[:1] != previous_candidates[:1]:
+            return True, current_candidates[0]
         
         return False, ""
     
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self, session_id: str = "") -> dict[str, Any]:
         """获取主线管理器状态。"""
+        session = self._get_or_create_session(session_id)
         return {
-            "active_thread": self.get_active_thread_summary(),
-            "background_count": len(self.background_threads),
-            "dormant_count": len(self.dormant_threads),
-            "turn_counter": self._turn_counter,
+            "active_thread": self.get_active_thread_summary(session_id),
+            "background_count": len(session.background_threads),
+            "dormant_count": len(session.dormant_threads),
+            "turn_counter": session.turn_counter,
+        }
+    
+    def _build_resume_capsule(
+        self,
+        name: str,
+        thread_type: str,
+        urgency_score: float,
+        emotion_score: float,
+        resume_tokens: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        urgency_label = "高" if urgency_score > 0.7 else ("中" if urgency_score > 0.4 else "低")
+        emotion_label = "高压" if emotion_score > 0.7 else ("牵挂中" if emotion_score > 0.4 else "平稳")
+        next_action = ""
+        if metadata:
+            next_action = str(metadata.get("next_action", ""))
+        return {
+            "thread_name": name,
+            "thread_type": thread_type,
+            "current_stage": metadata.get("current_stage", "") if metadata else "",
+            "why_it_matters": metadata.get("why_it_matters", "") if metadata else "",
+            "current_blocker": metadata.get("current_blocker", "") if metadata else "",
+            "last_progress": resume_tokens[:120],
+            "next_recommended_action": next_action,
+            "emotion_tone": emotion_label,
+            "urgency": urgency_label,
+            "resume_hint_for_reply": f"{name}这条线还挂着，最近卡点是：{resume_tokens[:80]}",
         }

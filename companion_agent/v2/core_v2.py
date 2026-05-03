@@ -16,6 +16,7 @@ Core v2 - 本科生陪伴 Agent v2 核心编排器（状态机版）
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -29,6 +30,8 @@ from .persona_v2 import PersonaV2, CharacterStyle
 from .life_skills import LifeSkillsEngine, LifeAdvice
 from .response_judge import ResponseJudge, JudgeResult
 from .relationship_memory import RelationshipMemory, RelationshipProfile
+from .review_store import ReviewStore
+from .review_extractor import ReviewExtractor, ReviewSummary
 
 # 兼容旧版组件
 from ..persona import SystemPersonaLayer
@@ -65,8 +68,11 @@ class CompanionResultV2:
     # 评审
     judge_result: JudgeResult | None
     
+    # 复盘摘要（仅当 goal 为 review_* 时有值）
+    review_summary: ReviewSummary | None = None
+    
     # 安全
-    safety_flag: bool
+    safety_flag: bool = False
     
     # 系统提示词
     system_prompt: str = ""
@@ -116,6 +122,10 @@ class CompanionAgentCoreV2:
         self.relationship_memory = RelationshipMemory()
         self.tool_registry = get_tool_registry()
         
+        # 复盘存储层
+        self.review_store = ReviewStore()
+        self.review_extractor = ReviewExtractor()
+        
         # 加载持久化的关系档案
         self._load_relationship_memory()
         
@@ -159,7 +169,8 @@ class CompanionAgentCoreV2:
         history = conversation_history or []
         
         # === Step 1: 意图分析（信号提取器）===
-        current_state_summary = self.state_tracker.get_state_summary()
+        sid = session_id or self.session_id
+        current_state_summary = self.state_tracker.get_state_summary(sid)
         intent = await self.intent_engine.analyze(
             user_message=user_message,
             conversation_history=history,
@@ -175,6 +186,7 @@ class CompanionAgentCoreV2:
         
         if is_shift and new_topic:
             # 创建新主线或切换到已有主线
+            thread_metadata = self._build_thread_metadata(intent, user_message)
             if intent.pressure_signal > 0.5:
                 self.thread_manager.create_thread(
                     name=new_topic,
@@ -182,6 +194,8 @@ class CompanionAgentCoreV2:
                     urgency_score=intent.task_urgency,
                     emotion_score=intent.emotional_intensity,
                     resume_tokens=user_message[:100],
+                    metadata=thread_metadata,
+                    session_id=sid,
                 )
             else:
                 self.thread_manager.create_thread(
@@ -190,23 +204,31 @@ class CompanionAgentCoreV2:
                     urgency_score=intent.task_urgency,
                     emotion_score=intent.emotional_intensity,
                     resume_tokens=user_message[:100],
+                    metadata=thread_metadata,
+                    session_id=sid,
                 )
         
         # 更新前台主线分数
-        if self.thread_manager.active_thread:
+        if self.thread_manager.get_active_thread_summary(sid):
             self.thread_manager.update_thread(
-                thread_id=self.thread_manager.active_thread.id,
+                thread_id=self.thread_manager.get_active_thread_summary(sid).get("id", ""),
                 emotion_score=intent.emotional_intensity,
                 user_focus_score=1.0 if intent.topic_shift_type == "none" else 0.5,
+                resume_tokens=user_message[:100],
+                metadata=self._build_thread_metadata(intent, user_message),
+                session_id=sid,
             )
         
         # 如果没有前台主线，创建一个 light_chat
-        if not self.thread_manager.active_thread:
+        if not self.thread_manager.get_active_thread_summary(sid):
             self.thread_manager.create_thread(
                 name="闲聊",
                 thread_type="light_chat",
                 urgency_score=0.2,
                 emotion_score=intent.emotional_intensity,
+                resume_tokens=user_message[:100],
+                metadata=self._build_thread_metadata(intent, user_message),
+                session_id=sid,
             )
         
         # === Step 3: 状态更新（显式状态机）===
@@ -214,21 +236,22 @@ class CompanionAgentCoreV2:
             intent_analysis=intent,
             user_message=user_message,
             assistant_reply="",  # 将在生成后更新
+            session_id=sid,
         )
         
         # === Step 4: 策略规划 ===
-        sid = session_id or self.session_id
         relationship_profile = self.relationship_memory.get_profile(session_id=sid)
         policy = self.policy_planner.plan(
             intent=intent,
             state=conv_state,
             thread_manager=self.thread_manager,
             relationship_profile=relationship_profile,
+            user_message=user_message,
         )
         
         # 如果需要拉回主线
         if policy.pull_main_thread and policy.main_thread_id:
-            self.thread_manager.switch_to_thread(policy.main_thread_id)
+            self.thread_manager.switch_to_thread(policy.main_thread_id, sid)
         
         # === Step 5: 记忆检索 ===
         memory_context = TieredMemoryContext()
@@ -269,10 +292,17 @@ class CompanionAgentCoreV2:
             )
             if life_advice:
                 task_context += f"\n【生活建议】{life_advice.advice}"
+                active_thread = self.thread_manager.get_active_thread_summary(sid)
+                if active_thread:
+                    self.thread_manager.update_thread(
+                        thread_id=active_thread.get("id", ""),
+                        metadata=self._build_thread_metadata(intent, user_message, next_action=life_advice.advice),
+                        session_id=sid,
+                    )
         
         # === Step 7: 上下文装配 ===
-        active_thread_summary = self.thread_manager.get_active_thread_summary()
-        background_summaries = self.thread_manager.get_background_summaries()
+        active_thread_summary = self.thread_manager.get_active_thread_summary(sid)
+        background_summaries = self.thread_manager.get_background_summaries(sid)
         
         # 构建角色提示词
         humor_mode = self.relationship_memory.get_humor_mode(
@@ -292,11 +322,12 @@ class CompanionAgentCoreV2:
         memory_text = memory_context.to_prompt_section() if memory_context else ""
         
         # 装配上下文块
+        assembly_state = policy.target_state or conv_state.current_state
         context_blocks = self.context_assembler.assemble(
-            state=conv_state.current_state,
+            state=assembly_state,
             policy=policy,
             persona=persona_prompt,
-            relationship=relationship_profile,
+            relationship=self.relationship_memory.get_summary(session_id=sid),
             active_thread=active_thread_summary,
             background_threads=background_summaries,
             memory_context=memory_text,
@@ -309,6 +340,7 @@ class CompanionAgentCoreV2:
             blocks=context_blocks,
             history=history,
             user_message=user_message,
+            max_tokens=self.context_assembler.budget_for_policy(policy),
         )
         
         # === Step 8: LLM生成回复 ===
@@ -322,7 +354,7 @@ class CompanionAgentCoreV2:
                 user_message=user_message,
                 assistant_reply=assistant_reply,
                 conversation_mode=policy.goal,
-                conversation_state=self.state_tracker.get_state_summary(),
+                conversation_state=self.state_tracker.get_state_summary(sid),
             )
             if judge_result and not judge_result.is_good and judge_result.improved_reply:
                 assistant_reply = judge_result.improved_reply
@@ -346,6 +378,7 @@ class CompanionAgentCoreV2:
             intent_analysis=intent,
             user_message=user_message,
             assistant_reply=assistant_reply,
+            session_id=sid,
         )
         
         # 保存本轮意图
@@ -374,6 +407,27 @@ class CompanionAgentCoreV2:
         # 安全检测
         safety_flag = self._check_safety(user_message, intent)
         
+        # === Step 10b: 复盘摘要生成（当 goal 为 review_* 时）===
+        review_summary = None
+        if policy.goal.startswith("review_"):
+            review_summary = self._generate_review_summary(
+                policy=policy,
+                intent=intent,
+                state=conv_state,
+                user_message=user_message,
+                assistant_reply=assistant_reply,
+                sid=sid,
+            )
+            # 把复盘摘要回写到线程 resume_capsule，让下次恢复能接上
+            self.apply_review_summary_to_threads(review_summary, session_id=sid)
+            # 保存到复盘存储层，支持连续日记/周报
+            self.review_store.save_review(
+                session_id=sid,
+                scope=review_summary.scope,
+                user_visible_text=review_summary.user_visible,
+                system_summary=review_summary.structured,
+            )
+        
         # 构建系统提示词摘要（调试用）
         system_prompt = "\n\n".join([b.content for b in context_blocks])
         
@@ -389,6 +443,7 @@ class CompanionAgentCoreV2:
             memory_updated=False,
             tool_results=tool_results,
             judge_result=judge_result,
+            review_summary=review_summary,
             safety_flag=safety_flag,
             system_prompt=system_prompt[:500] + "..." if len(system_prompt) > 500 else system_prompt,
             debug_info={
@@ -403,6 +458,7 @@ class CompanionAgentCoreV2:
                 },
                 "state": {
                     "current_state": conv_state.current_state,
+                    "assembly_state": assembly_state,
                     "previous_state": conv_state.previous_state,
                     "mode": conv_state.mode,
                     "intimacy": round(conv_state.intimacy_level, 2),
@@ -414,8 +470,8 @@ class CompanionAgentCoreV2:
                     "allow_advice": policy.allow_advice,
                 },
                 "threads": {
-                    "active": self.thread_manager.get_active_thread_summary(),
-                    "background_count": len(self.thread_manager.background_threads),
+                    "active": self.thread_manager.get_active_thread_summary(sid),
+                    "background_count": len(self.thread_manager.get_background_summaries(sid)),
                 },
                 "relationship": {
                     "profile_changed": profile_changed,
@@ -434,6 +490,8 @@ class CompanionAgentCoreV2:
         conversation_history: list[dict[str, str]] | None = None,
         character_card_prompt: str = "",
         memory_enabled: bool = True,
+        session_id: str = "",
+        user_id: str = "",
     ) -> CompanionResultV2:
         """处理用户消息（向后兼容，调用新流程）。"""
         return await self.generate_reply(
@@ -441,6 +499,8 @@ class CompanionAgentCoreV2:
             conversation_history=conversation_history,
             character_card_prompt=character_card_prompt,
             memory_enabled=memory_enabled,
+            session_id=session_id,
+            user_id=user_id,
         )
     
     async def judge_response(
@@ -448,6 +508,7 @@ class CompanionAgentCoreV2:
         user_message: str,
         assistant_reply: str,
         result: CompanionResultV2,
+        session_id: str = "",
     ) -> JudgeResult:
         """对生成的回复进行评审（向后兼容）。"""
         if not self.response_judge:
@@ -463,7 +524,7 @@ class CompanionAgentCoreV2:
             user_message=user_message,
             assistant_reply=assistant_reply,
             conversation_mode=result.policy.goal,
-            conversation_state=result.conversation_state.get_state_summary(),
+            conversation_state=self.state_tracker.get_state_summary(session_id or self.session_id),
         )
     
     async def learn_from_interaction(
@@ -516,7 +577,7 @@ class CompanionAgentCoreV2:
         sid = session_id or self.session_id
 
         # === Steps 1-7: 意图分析、主线管理、状态更新、策略规划、记忆检索、工具执行、上下文装配 ===
-        current_state_summary = self.state_tracker.get_state_summary()
+        current_state_summary = self.state_tracker.get_state_summary(sid)
         intent = await self.intent_engine.analyze(
             user_message=user_message,
             conversation_history=history,
@@ -535,27 +596,36 @@ class CompanionAgentCoreV2:
                 urgency_score=intent.task_urgency,
                 emotion_score=intent.emotional_intensity,
                 resume_tokens=user_message[:100],
+                metadata=self._build_thread_metadata(intent, user_message),
+                session_id=sid,
             )
 
-        if self.thread_manager.active_thread:
+        if self.thread_manager.get_active_thread_summary(sid):
             self.thread_manager.update_thread(
-                thread_id=self.thread_manager.active_thread.id,
+                thread_id=self.thread_manager.get_active_thread_summary(sid).get("id", ""),
                 emotion_score=intent.emotional_intensity,
                 user_focus_score=1.0 if intent.topic_shift_type == "none" else 0.5,
+                resume_tokens=user_message[:100],
+                metadata=self._build_thread_metadata(intent, user_message),
+                session_id=sid,
             )
 
-        if not self.thread_manager.active_thread:
+        if not self.thread_manager.get_active_thread_summary(sid):
             self.thread_manager.create_thread(
                 name="闲聊",
                 thread_type="light_chat",
                 urgency_score=0.2,
                 emotion_score=intent.emotional_intensity,
+                resume_tokens=user_message[:100],
+                metadata=self._build_thread_metadata(intent, user_message),
+                session_id=sid,
             )
 
         conv_state = self.state_tracker.update(
             intent_analysis=intent,
             user_message=user_message,
             assistant_reply="",
+            session_id=sid,
         )
 
         relationship_profile = self.relationship_memory.get_profile(session_id=sid)
@@ -564,10 +634,11 @@ class CompanionAgentCoreV2:
             state=conv_state,
             thread_manager=self.thread_manager,
             relationship_profile=relationship_profile,
+            user_message=user_message,
         )
 
         if policy.pull_main_thread and policy.main_thread_id:
-            self.thread_manager.switch_to_thread(policy.main_thread_id)
+            self.thread_manager.switch_to_thread(policy.main_thread_id, sid)
 
         memory_context = TieredMemoryContext()
         if memory_enabled:
@@ -604,9 +675,16 @@ class CompanionAgentCoreV2:
             )
             if life_advice:
                 task_context += f"\n【生活建议】{life_advice.advice}"
+                active_thread = self.thread_manager.get_active_thread_summary(sid)
+                if active_thread:
+                    self.thread_manager.update_thread(
+                        thread_id=active_thread.get("id", ""),
+                        metadata=self._build_thread_metadata(intent, user_message, next_action=life_advice.advice),
+                        session_id=sid,
+                    )
 
-        active_thread_summary = self.thread_manager.get_active_thread_summary()
-        background_summaries = self.thread_manager.get_background_summaries()
+        active_thread_summary = self.thread_manager.get_active_thread_summary(sid)
+        background_summaries = self.thread_manager.get_background_summaries(sid)
 
         humor_mode = self.relationship_memory.get_humor_mode(
             emotional_intensity=intent.emotional_intensity,
@@ -623,11 +701,12 @@ class CompanionAgentCoreV2:
 
         memory_text = memory_context.to_prompt_section() if memory_context else ""
 
+        assembly_state = policy.target_state or conv_state.current_state
         context_blocks = self.context_assembler.assemble(
-            state=conv_state.current_state,
+            state=assembly_state,
             policy=policy,
             persona=persona_prompt,
-            relationship=relationship_profile,
+            relationship=self.relationship_memory.get_summary(session_id=sid),
             active_thread=active_thread_summary,
             background_threads=background_summaries,
             memory_context=memory_text,
@@ -639,6 +718,7 @@ class CompanionAgentCoreV2:
             blocks=context_blocks,
             history=history,
             user_message=user_message,
+            max_tokens=self.context_assembler.budget_for_policy(policy),
         )
 
         # === Step 8: 流式 LLM 生成 ===
@@ -662,7 +742,7 @@ class CompanionAgentCoreV2:
                 user_message=user_message,
                 assistant_reply=assistant_reply,
                 conversation_mode=policy.goal,
-                conversation_state=self.state_tracker.get_state_summary(),
+                conversation_state=self.state_tracker.get_state_summary(sid),
             )
             if judge_result and not judge_result.is_good and judge_result.improved_reply:
                 assistant_reply = judge_result.improved_reply
@@ -683,6 +763,7 @@ class CompanionAgentCoreV2:
             intent_analysis=intent,
             user_message=user_message,
             assistant_reply=assistant_reply,
+            session_id=sid,
         )
         self._previous_intent = intent
 
@@ -735,6 +816,7 @@ class CompanionAgentCoreV2:
                 },
                 "state": {
                     "current_state": conv_state.current_state,
+                    "assembly_state": assembly_state,
                     "previous_state": conv_state.previous_state,
                     "mode": conv_state.mode,
                     "intimacy": round(conv_state.intimacy_level, 2),
@@ -746,8 +828,8 @@ class CompanionAgentCoreV2:
                     "allow_advice": policy.allow_advice,
                 },
                 "threads": {
-                    "active": self.thread_manager.get_active_thread_summary(),
-                    "background_count": len(self.thread_manager.background_threads),
+                    "active": self.thread_manager.get_active_thread_summary(sid),
+                    "background_count": len(self.thread_manager.get_background_summaries(sid)),
                 },
                 "relationship": {
                     "profile_changed": profile_changed,
@@ -930,6 +1012,188 @@ class CompanionAgentCoreV2:
         
         t = user_message.lower()
         return any(kw in t for kw in sensitive_keywords)
+
+    def _generate_review_summary(
+        self,
+        policy: TurnPolicy,
+        intent: IntentAnalysis,
+        state: ConversationState,
+        user_message: str,
+        assistant_reply: str,
+        sid: str,
+    ) -> ReviewSummary:
+        """生成复盘结构化摘要（用户可见 + 系统内部）。
+        
+        从当前对话状态、主线、意图中自动抽取，不额外调用 LLM。
+        """
+        scope = policy.goal.replace("review_", "")
+        
+        # 提取关键信息
+        active_thread = self.thread_manager.get_active_thread_summary(sid)
+        background_threads = self.thread_manager.get_background_summaries(sid)
+        
+        # 情绪趋势
+        emotion_history = state.emotion_history[-5:] if state.emotion_history else []
+        emotions = [e[0] for e in emotion_history]
+        intensities = [e[1] for e in emotion_history]
+        avg_intensity = round(sum(intensities) / len(intensities), 2) if intensities else 0.0
+        
+        # 关键事件（从用户消息中抽取具体活动）
+        key_events = []
+        # 提取用户消息中的活动描述（过滤掉复盘请求本身）
+        user_msg_clean = user_message.strip()
+        review_phrases = ["复盘", "梳理", "总结", "回顾", "帮我", "今天", "这周"]
+        is_pure_request = any(ph in user_msg_clean for ph in review_phrases) and len(user_msg_clean) < 30
+        if not is_pure_request:
+            key_events.append(user_msg_clean[:100])
+        
+        # 补充主线中的事件背景
+        if active_thread and active_thread.get("resume_tokens"):
+            rt = active_thread.get("resume_tokens", "")
+            if rt != user_msg_clean and len(rt) > 5:
+                key_events.append(rt[:100])
+        
+        # 能量模式推断
+        energy_pattern = "stable"
+        if intensities:
+            if intensities[0] > 0.6 and intensities[-1] < 0.4:
+                energy_pattern = "前高后低"
+            elif intensities[0] < 0.4 and intensities[-1] > 0.6:
+                energy_pattern = "前低后高"
+            elif max(intensities) - min(intensities) > 0.4:
+                energy_pattern = "波动大"
+        
+        # 卡点/困难（从用户消息中推断）
+        blockers = []
+        blocker_keywords = [
+            "写不完", "被拒", "打回", "效率低", "松懈", "没状态", "焦虑", "累",
+            "困难", "压力", "崩溃", "失败", "不顺", "拖延", "逃避", "不想",
+            "后悔", "乱", "迷茫", "卡住", "瓶颈", "冲突", "纠结",
+        ]
+        for kw in blocker_keywords:
+            if kw in user_message:
+                blockers.append(kw)
+        
+        # 小成就（从回复中推断积极信号）
+        wins = []
+        if any(kw in assistant_reply for kw in ["对", "很好", "进步", "完成", "改完", "梳理"]):
+            wins.append("主动复盘")
+        if intent.action_receptivity > 0.5:
+            wins.append("接受建议意愿高")
+        
+        # 下一步行动（从回复中提取）
+        next_actions = []
+        if "明天" in assistant_reply or "下次" in assistant_reply or "试试" in assistant_reply:
+            # 提取包含行动建议的句子
+            for sent in assistant_reply.split("。"):
+                if any(kw in sent for kw in ["试试", "可以", "建议", "要不", "定个"]):
+                    next_actions.append(sent.strip())
+        if not next_actions and policy.goal.startswith("review_"):
+            next_actions.append("继续观察" + scope + "节奏")
+        
+        # 结构化摘要
+        structured = {
+            "time_range": scope,
+            "dominant_emotion": state.dominant_emotion,
+            "emotion_trend": state.emotional_trend,
+            "avg_intensity": avg_intensity,
+            "energy_pattern": energy_pattern,
+            "key_events": key_events[:5],
+            "blockers": list(set(blockers)),
+            "wins": wins,
+            "next_actions": next_actions[:3],
+            "user_scene": state.user_scene,
+            "topics": state.recent_topics[-3:],
+        }
+        
+        return ReviewSummary(
+            scope=scope,
+            user_visible=assistant_reply,
+            structured=structured,
+        )
+
+    def apply_review_summary_to_threads(
+        self,
+        review_summary: ReviewSummary,
+        session_id: str = "",
+    ) -> None:
+        """把复盘摘要回写到相关线程的 resume_capsule。
+
+        让"总结过的东西下次真能接上"。
+        """
+        sid = session_id or self.session_id
+        structured = review_summary.structured
+
+        # 找到与复盘相关的线程（当前 active 或最近相关的 background）
+        active = self.thread_manager.get_active_thread_summary(sid)
+        backgrounds = self.thread_manager.get_background_summaries(sid)
+
+        # 构建更新的 capsule 字段
+        next_actions = structured.get("next_actions", [])
+        blockers = structured.get("blockers", [])
+        topics = structured.get("topics", [])
+        dominant_emotion = structured.get("dominant_emotion", "")
+
+        # 如果有 active thread，优先更新它
+        if active and active.get("id"):
+            thread_id = active["id"]
+            metadata_update = {
+                "current_blocker": ", ".join(blockers) if blockers else active.get("resume_capsule", {}).get("current_blocker", ""),
+                "last_progress": review_summary.user_visible[:120] if review_summary.user_visible else "",
+                "next_recommended_action": next_actions[0] if next_actions else active.get("resume_capsule", {}).get("next_recommended_action", ""),
+                "why_it_matters": active.get("resume_capsule", {}).get("why_it_matters", "") or "这是用户当前在意的一条生活主线。",
+                "review_dominant_emotion": dominant_emotion,
+                "review_topics": topics,
+                "review_next_actions": next_actions,
+                "review_blockers": blockers,
+                "last_review_scope": review_summary.scope,
+                "last_review_at": time.time(),
+            }
+            self.thread_manager.update_thread(
+                thread_id=thread_id,
+                metadata=metadata_update,
+                session_id=sid,
+            )
+
+        # 也更新 background 中相关的线程（按 topic 匹配）
+        for bg in backgrounds:
+            bg_id = bg.get("id")
+            if not bg_id:
+                continue
+            bg_name = bg.get("name", "")
+            # 简单匹配：线程名或类型与复盘 topics 相关
+            should_update = False
+            for topic in topics:
+                if topic.lower() in bg_name.lower() or bg.get("type", "") == topic:
+                    should_update = True
+                    break
+            if should_update:
+                self.thread_manager.update_thread(
+                    thread_id=bg_id,
+                    metadata={
+                        "next_recommended_action": next_actions[0] if next_actions else bg.get("resume_capsule", {}).get("next_recommended_action", ""),
+                        "last_review_scope": review_summary.scope,
+                        "last_review_at": time.time(),
+                    },
+                    session_id=sid,
+                )
+
+    def _build_thread_metadata(
+        self,
+        intent: IntentAnalysis,
+        user_message: str,
+        next_action: str = "",
+    ) -> dict[str, Any]:
+        """为线程恢复胶囊构建可复用的阶段元数据。"""
+        stage = intent.task_category if intent.task_category != "none" else intent.primary_intent
+        blocker = user_message[:80]
+        why = intent.emotional_context or "这是用户当前在意的一条生活主线。"
+        return {
+            "current_stage": stage,
+            "why_it_matters": why[:120],
+            "current_blocker": blocker,
+            "next_action": next_action[:80] if next_action else "",
+        }
     
     def _get_memory_snapshot(self) -> dict[str, Any]:
         """获取记忆快照。"""
@@ -1003,17 +1267,20 @@ class CompanionAgentCoreV2:
                 return False
         return False
     
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self, session_id: str = "") -> dict[str, Any]:
         """获取当前状态。"""
-        state = self.state_tracker.state
+        sid = session_id or self.session_id
+        state = self.state_tracker._get_or_create_state(sid)
         return {
             "version": "2.1",
             "persona_name": self.persona_v2.style.name,
+            "session_id": sid,
+            "user_id": self.user_id,
             "current_state": state.current_state,
             "brain_mode": state.mode,
             "intimacy_level": round(state.intimacy_level, 2),
             "dominant_emotion": state.dominant_emotion,
             "recent_topics": state.recent_topics,
-            "active_thread": self.thread_manager.get_active_thread_summary(),
-            "background_count": len(self.thread_manager.background_threads),
+            "active_thread": self.thread_manager.get_active_thread_summary(sid),
+            "background_count": len(self.thread_manager.get_background_summaries(sid)),
         }

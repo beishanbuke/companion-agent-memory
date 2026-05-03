@@ -473,7 +473,7 @@ class ResponseJudge:
         # === LLM 层评审（可选） ===
         llm_score = None
         llm_issues = []
-        if self._client and len(assistant_reply) > 10:
+        if self._runtime and len(assistant_reply) > 10:
             try:
                 llm_score, llm_issues, improved = await self._llm_judge(
                     user_message, assistant_reply, conversation_mode
@@ -498,12 +498,20 @@ class ResponseJudge:
         
         is_good = final_score >= 7.0 and len(all_issues) <= 2
         
+        # 确定重写级别和原因
+        rewrite_level = "none" if is_good else "tone_fix"
+        rewrite_reason = ""
+        if all_issues:
+            rewrite_reason = all_issues[0]
+        
         return JudgeResult(
             is_good=is_good,
             score=final_score,
             issues=all_issues,
             suggestions=suggestions,
             improved_reply=improved if not is_good else assistant_reply,
+            rewrite_level=rewrite_level,
+            rewrite_reason=rewrite_reason,
         )
     
     def _check_template_smell(self, reply: str) -> list[str]:
@@ -628,23 +636,22 @@ class ResponseJudge:
   "improved_version": "改进后的回复"
 }}"""
 
-        response = await self._client.chat.completions.create(
-            model=self.model,
+        text = await self._runtime.call(
+            "review",
             messages=[
                 {"role": "system", "content": "你是一个严格的对话质量评审员，只输出 JSON。"},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.1,
-            max_tokens=500,
         )
         
-        content = response.choices[0].message.content or "{}"
-        
         # 提取 JSON
-        json_start = content.find("{")
-        json_end = content.rfind("}")
+        json_start = text.find("{")
+        json_end = text.rfind("}")
         if json_start >= 0 and json_end > json_start:
-            data = json.loads(content[json_start:json_end + 1])
+            try:
+                data = json.loads(text[json_start:json_end + 1])
+            except json.JSONDecodeError:
+                data = {}
         else:
             data = {}
         

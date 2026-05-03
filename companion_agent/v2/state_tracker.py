@@ -24,9 +24,12 @@ from typing import Any
 # 显式状态机状态
 STATE_LIGHT_CHAT = "light_chat"          # 日常闲聊
 STATE_SUPPORT_CRISIS = "support_crisis"  # 情绪危机/深度陪伴
-STATE_PUSHABLE_LOW = "pushable_low"      # 低能量但可被轻推
-STATE_TASK_EXEC = "task_exec"            # 任务执行中
+STATE_SUPPORT_SOFT = "support_soft"      # 软陪伴/倾诉承接
+STATE_PUSHABLE_LOW = "pushable_low_energy"  # 低能量但可被轻推
+STATE_TASK_EXEC = "task_execution"       # 任务执行中
 STATE_TASK_DONE = "task_done"            # 任务刚完成
+STATE_PLANNING = "planning"              # 认真规划
+STATE_REVIEW_REFLECTION = "review_reflection"  # 复盘收拢
 STATE_QUIET = "quiet"                    # 用户想安静
 STATE_CLARIFY = "clarify"                # 需要澄清
 
@@ -174,27 +177,39 @@ class StateTracker:
         if emotion_intensity > 0.7 and primary in ("companion", "vent", "share"):
             new_state = STATE_SUPPORT_CRISIS
         
-        # 2. 低能量但可被轻推 -> pushable_low
+        # 2. 软陪伴/倾诉承接 -> support_soft
+        elif primary in ("companion", "share", "vent") and intent.conversation_rhythm == "confiding":
+            new_state = STATE_SUPPORT_SOFT
+
+        # 3. 低能量但可被轻推 -> pushable_low
         elif emotion_intensity > 0.4 and action_rec > 0.3 and action_rec < 0.6 and task_urgency < 0.5:
             new_state = STATE_PUSHABLE_LOW
         
-        # 3. 任务执行中 -> task_exec
+        # 4. 主动复盘 -> review_reflection
+        elif intent.conversation_rhythm == "reviewing":
+            new_state = STATE_REVIEW_REFLECTION
+
+        # 5. 规划态 -> planning
+        elif intent.conversation_rhythm == "planning" or primary == "advice":
+            new_state = STATE_PLANNING
+
+        # 6. 任务执行中 -> task_exec
         elif primary == "execute" or (task_urgency > 0.5 and action_rec > 0.5):
             new_state = STATE_TASK_EXEC
         
-        # 4. 需要澄清 -> clarify
+        # 7. 需要澄清 -> clarify
         elif clarification > 0.6:
             new_state = STATE_CLARIFY
         
-        # 5. 用户想安静 -> quiet
+        # 8. 用户想安静 -> quiet
         elif primary == "quiet":
             new_state = STATE_QUIET
         
-        # 6. 话题回归/新主线 -> light_chat (如果情绪稳定)
+        # 9. 话题回归/新主线 -> light_chat (如果情绪稳定)
         elif shift_type in ("return_to_thread", "new_thread") and emotion_intensity < 0.5:
             new_state = STATE_LIGHT_CHAT
         
-        # 7. 默认回 light_chat (情绪稳定)
+        # 10. 默认回 light_chat (情绪稳定)
         elif emotion_intensity < 0.4 and state.current_state != STATE_TASK_EXEC:
             new_state = STATE_LIGHT_CHAT
         
@@ -282,6 +297,7 @@ class StateTracker:
             "sharing": "casual",
             "chill": "casual",
             "planning": "planning",
+            "reviewing": "review",
         }
         
         mode = mapping.get(rhythm, "casual")
@@ -406,7 +422,7 @@ class StateTracker:
         state = self._get_or_create_state(session_id or self._default_session)
         
         # 显式状态中，这些状态强制保持 chat mode
-        if state.current_state in (STATE_SUPPORT_CRISIS, STATE_PUSHABLE_LOW, STATE_QUIET):
+        if state.current_state in (STATE_SUPPORT_CRISIS, STATE_SUPPORT_SOFT, STATE_PUSHABLE_LOW, STATE_QUIET, STATE_REVIEW_REFLECTION):
             return True
         
         if intent.emotional_intensity > 0.6 and intent.primary_intent in ("companion", "vent", "share"):
@@ -427,9 +443,12 @@ class StateTracker:
             # 显式状态
             STATE_LIGHT_CHAT: "普通闲聊。自然接话，偶尔抛个小话题。",
             STATE_SUPPORT_CRISIS: "用户情绪危机。优先陪伴，不急于解决问题。让用户感到被接纳。不要给建议。",
+            STATE_SUPPORT_SOFT: "用户在认真倾诉。先承接和整理感受，再决定是否轻轻推进。",
             STATE_PUSHABLE_LOW: "用户低能量但可被轻推。先共情，再试探性给一个小建议。不要push太狠。",
             STATE_TASK_EXEC: "任务执行中。专注帮用户完成任务，保持高效。完成后自然过渡。",
             STATE_TASK_DONE: "任务刚完成。给用户一个正向反馈，然后自然回到闲聊或询问是否还有别的。",
+            STATE_PLANNING: "用户在认真规划。聚焦优先级、下一步和现实约束，少废话。",
+            STATE_REVIEW_REFLECTION: "用户在复盘。先帮他收拢今天/这周/这个阶段，再提炼卡点和下一步。",
             STATE_QUIET: "用户想安静。回复要短，不要追问。给一个温暖的收尾。",
             STATE_CLARIFY: "需要澄清。礼貌地请用户说明白一点。不要猜测太多。",
             # 兼容旧 mode

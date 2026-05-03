@@ -1,0 +1,37 @@
+{
+  "b958a910-bffe-4056-9df0-bce2264600f5": {
+    "comfort_style": "balanced",
+    "banter_tolerance": 0.5,
+    "advice_threshold": 0.5,
+    "humor_mode": "light",
+    "version": 28
+  },
+  "57c23798-0f59-45a0-9d8a-d8b5c58a8dfe": {
+    "comfort_style": "balanced",
+    "banter_tolerance": 0.5,
+    "advice_threshold": 0.5,
+    "humor_mode": "light",
+    "version": 15
+  },
+  "fe1e7a57-8dd2-403e-bcd4-fdbf75b7bc51": {
+    "comfort_style": "balanced",
+    "banter_tolerance": 0.5,
+    "advice_threshold": 0.5,
+    "humor_mode": "light",
+    "version": 14
+  },
+  "f9575a54-ab7d-4226-a311-20b46e64e334": {
+    "comfort_style": "balanced",
+    "banter_tolerance": 0.5,
+    "advice_threshold": 0.5,
+    "humor_mode": "light",
+    "version": 14
+  },
+  "eac2a1e4-8b54-448b-b68a-55b403473e4c": {
+    "comfort_style": "balanced",
+    "banter_tolerance": 0.5,
+    "advice_threshold": 0.5,
+    "humor_mode": "light",
+    "version": 14
+  }
+}

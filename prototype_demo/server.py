@@ -1538,6 +1538,10 @@ class DemoSession:
                     "companion_enabled": True,
                     "v2_brain": True,
                 },
+                "review_summary": {
+                    "scope": v2_result.review_summary.scope if v2_result.review_summary else "",
+                    "structured": v2_result.review_summary.structured if v2_result.review_summary else {},
+                } if v2_result.review_summary else None,
                 "debug_info": v2_result.debug_info,
             }
 

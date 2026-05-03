@@ -125,6 +125,24 @@ class IntentEngine:
                 thread_candidates=["饮食", "日常安排"],
                 clarification_confidence=0.0,
             )
+
+        if any(kw in t for kw in ["复盘", "总结", "今天都干了啥", "这周", "本周", "这段时间"]):
+            return IntentAnalysis(
+                primary_intent="share",
+                intent_confidence=0.75,
+                emotional_state="neutral",
+                emotional_intensity=0.4,
+                emotional_context="用户想回看阶段进展并收拢信息",
+                implicit_needs=["被整理", "形成连续感", "得到下一步"],
+                conversation_rhythm="reviewing",
+                task_category="none",
+                task_urgency=0.3,
+                action_receptivity=0.6,
+                topic_shift_type="return_to_thread" if any(kw in t for kw in ["这周", "这段时间"]) else "none",
+                pressure_signal=0.3,
+                thread_candidates=["复盘", "阶段整理"],
+                clarification_confidence=0.1,
+            )
         
         return IntentAnalysis(
             primary_intent="companion",
@@ -190,7 +208,7 @@ class IntentEngine:
   "emotional_intensity": 0.0-1.0,
   "emotional_context": "简要说明为什么会有这种情绪",
   "implicit_needs": ["用户没说出口但可能想要的需求"],
-  "conversation_rhythm": "venting|confiding|seeking_help|sharing|bantering|chill|planning",
+  "conversation_rhythm": "venting|confiding|seeking_help|sharing|bantering|chill|planning|reviewing",
   "task_category": "food|study|social|campus|music|outfit|none",
   "task_urgency": 0.0-1.0,
   "action_receptivity": 0.0-1.0,

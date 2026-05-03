@@ -1,0 +1,39 @@
+[
+  {
+    "scenario": "vent_then_push",
+    "description": "倾诉后轻推一步",
+    "turns": [
+      {
+        "user": "我觉得我最近好失败，什么都做不好，真的好累。",
+        "expected": {
+          "policy_goal": "stabilize",
+          "target_state_in": ["support_crisis", "support_soft"],
+          "allow_advice": false,
+          "allow_humor": false
+        }
+      },
+      {
+        "user": "就是实习被拒了，论文也被导师打回来重写，感觉事事不顺。",
+        "expected": {
+          "policy_goal": "stabilize",
+          "target_state_in": ["support_crisis", "support_soft"],
+          "allow_advice": false
+        }
+      },
+      {
+        "user": "嗯，你说得对，我现在可能想得太大了。",
+        "expected": {
+          "policy_goal_in": ["stay_light", "push_one_step"],
+          "allow_advice": true
+        }
+      },
+      {
+        "user": "那我明天先改论文的前两章吧，其他的先不想。",
+        "expected": {
+          "policy_goal": "push_one_step",
+          "target_state_in": ["task_execution", "pushable_low_energy"]
+        }
+      }
+    ]
+  }
+]

@@ -2358,3 +2358,39 @@ button:disabled,
   transform: translateX(-50%) translateY(0);
   opacity: 1;
 }
+
+/* Review Summary Styles */
+.review-summary-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-top: 8px;
+}
+
+.review-summary-scope {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-warm);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.review-summary-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.review-summary-item {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  padding: 6px 10px;
+  background: var(--bg-warm);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--accent-warm);
+}

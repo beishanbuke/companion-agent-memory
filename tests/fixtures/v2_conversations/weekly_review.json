@@ -1,0 +1,36 @@
+[
+  {
+    "scenario": "weekly_review",
+    "description": "本周复盘",
+    "turns": [
+      {
+        "user": "这周感觉过得好快，但又好像没做几件事，帮我梳理一下这周。",
+        "expected": {
+          "policy_goal": "review_week",
+          "target_state": "review_reflection",
+          "allow_recap": true,
+          "review_summary_scope": "week"
+        }
+      },
+      {
+        "user": "周一到周三在赶项目，周四周五有点松懈，周末基本在睡觉。",
+        "expected": {
+          "policy_goal": "review_week",
+          "review_summary_structured": {
+            "energy_pattern_in": ["前高后低", "稳定"]
+          }
+        }
+      },
+      {
+        "user": "对，周四开始就没状态了。下周怎么避免这种情况？",
+        "expected": {
+          "policy_goal": "push_one_step",
+          "allow_advice": true,
+          "review_summary_structured": {
+            "has_next_actions": true
+          }
+        }
+      }
+    ]
+  }
+]

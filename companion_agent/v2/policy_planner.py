@@ -39,11 +39,13 @@ class TurnPolicy:
     # 表达控制
     allow_humor: bool = True
     allow_advice: bool = False
+    allow_recap: bool = False
     response_length: str = "short"  # short/medium/long
-    
+
     # 工具
     tool_calls: list[str] = field(default_factory=list)
-    
+    context_profile: str = "standard"  # minimal/standard/task_heavy/thread_resume/review
+  
     # 状态机目标
     target_state: str = ""
     
@@ -53,6 +55,12 @@ class TurnPolicy:
 
 class PolicyPlanner:
     """策略规划器（升级自 DualBrainRouter）。"""
+
+    @staticmethod
+    def _rel_get(profile: Any, key: str, default: Any) -> Any:
+        if isinstance(profile, dict):
+            return profile.get(key, default)
+        return getattr(profile, key, default)
     
     def plan(
         self,
@@ -60,6 +68,7 @@ class PolicyPlanner:
         state: Any,
         thread_manager: Any,
         relationship_profile: Any,
+        user_message: str = "",
     ) -> TurnPolicy:
         """规划本轮策略。
         
@@ -73,7 +82,7 @@ class PolicyPlanner:
         policy = TurnPolicy()
         
         # === 1. 判断是否需要拉回主线 ===
-        should_pull, target_id = thread_manager.should_pull_main_thread()
+        should_pull, target_id = thread_manager.should_pull_main_thread(getattr(state, "session_id", ""))
         if should_pull and target_id:
             policy.pull_main_thread = True
             policy.main_thread_id = target_id
@@ -82,6 +91,7 @@ class PolicyPlanner:
             policy.max_questions = 0
             policy.allow_humor = False
             policy.response_length = "medium"
+            policy.context_profile = "thread_resume"
             return policy
         
         # === 2. 根据意图和状态决定策略 ===
@@ -95,6 +105,7 @@ class PolicyPlanner:
             policy.max_questions = 0
             policy.max_actions = 0
             policy.response_length = "short"
+            policy.context_profile = "minimal"
             policy.reason = "用户情绪高强度，优先稳定"
             return policy
         
@@ -106,6 +117,7 @@ class PolicyPlanner:
                 policy.allow_advice = True
                 policy.max_actions = 1
                 policy.response_length = "medium"
+                policy.context_profile = "standard"
                 policy.reason = "用户情绪中等，有一定承接力，可轻推一步"
                 return policy
         
@@ -116,17 +128,26 @@ class PolicyPlanner:
             policy.allow_advice = True
             policy.tool_calls = [intent.task_category] if intent.task_category != "none" else []
             policy.response_length = "medium"
+            policy.context_profile = "task_heavy"
             policy.reason = f"用户明确执行任务，紧急度{intent.task_urgency:.1f}"
             return policy
         
         # 主动复盘 -> review_day
-        if intent.conversation_rhythm == "review" or "总结" in intent.raw_analysis:
-            policy.goal = "review_day"
+        msg = user_message or ""
+        if intent.conversation_rhythm == "reviewing" or any(word in msg for word in ["总结", "复盘", "回顾", "梳理一下"]):
+            review_scope = "day"
+            if any(word in msg for word in ["这周", "本周", "一周"]):
+                review_scope = "week"
+            elif any(word in msg for word in ["这阶段", "这学期", "最近这段时间", "这个阶段"]):
+                review_scope = "phase"
+            policy.goal = f"review_{review_scope}"
             policy.target_state = "review_reflection"
             policy.allow_advice = False
+            policy.allow_recap = True
             policy.max_questions = 1
             policy.response_length = "medium"
-            policy.reason = "用户主动复盘"
+            policy.context_profile = "review"
+            policy.reason = f"用户主动{review_scope}复盘"
             return policy
         
         # 话题切换识别
@@ -137,6 +158,7 @@ class PolicyPlanner:
                 policy.clarify_needed = True
                 policy.max_questions = 1
                 policy.response_length = "short"
+                policy.context_profile = "minimal"
                 policy.reason = "检测到高压话题切换，需要确认紧急度"
                 return policy
         
@@ -144,10 +166,11 @@ class PolicyPlanner:
         if intent.conversation_rhythm in ("bantering", "chill", "sharing"):
             policy.goal = "stay_light"
             policy.target_state = "light_chat"
-            policy.allow_humor = relationship_profile.get("humor_mode", "light") != "off"
+            policy.allow_humor = self._rel_get(relationship_profile, "humor_mode", "light") != "off"
             policy.allow_advice = False
             policy.max_questions = 1
             policy.response_length = "short"
+            policy.context_profile = "standard"
             policy.reason = "轻松闲聊模式"
             return policy
         
@@ -155,10 +178,11 @@ class PolicyPlanner:
         if intent.conversation_rhythm == "confiding":
             policy.goal = "stabilize"
             policy.target_state = "support_soft"
-            policy.allow_advice = relationship_profile.get("advice_threshold", 0.5) > 0.7
+            policy.allow_advice = self._rel_get(relationship_profile, "advice_threshold", 0.5) > 0.7
             policy.allow_humor = False
             policy.max_questions = 1
             policy.response_length = "medium"
+            policy.context_profile = "standard"
             policy.reason = "用户在倾诉"
             return policy
         
@@ -169,12 +193,14 @@ class PolicyPlanner:
             policy.allow_advice = True
             policy.max_actions = 1
             policy.response_length = "medium"
+            policy.context_profile = "task_heavy"
             policy.reason = "用户在做规划"
             return policy
         
         # 默认
         policy.goal = "stay_light"
         policy.target_state = "light_chat"
+        policy.context_profile = "standard"
         policy.reason = "默认策略"
         return policy
     
@@ -182,7 +208,7 @@ class PolicyPlanner:
         """从策略推断模式（兼容旧接口）。"""
         if policy.goal in ("stabilize", "stay_light"):
             return "chat"
-        elif policy.goal in ("push_one_step", "resume_main_thread", "review_day"):
+        elif policy.goal in ("push_one_step", "resume_main_thread", "review_day", "review_week", "review_phase"):
             return "task" if policy.tool_calls else "chat"
         elif policy.goal == "clarify_urgency":
             return "chat"

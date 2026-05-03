@@ -1,0 +1,62 @@
+{
+  "2026-05-03": {
+    "day": {
+      "session_id": "eac2a1e4-8b54-448b-b68a-55b403473e4c",
+      "date": "2026-05-03",
+      "scope": "day",
+      "user_visible_text": "从你刚说的来看，今天主要卡在论文焦虑-想逃避-最后硬着头皮开始的循环里。但重点是你最后还是打开了文档，这已经很厉害了。想不想聊聊是什么让你最难下笔的部分？",
+      "system_summary": {
+        "time_range": "day",
+        "dominant_emotion": "neutral",
+        "emotion_trend": "stable",
+        "avg_intensity": 0.34,
+        "energy_pattern": "stable",
+        "key_events": [],
+        "blockers": [
+          "乱"
+        ],
+        "wins": [
+          "接受建议意愿高"
+        ],
+        "next_actions": [
+          "继续观察day节奏"
+        ],
+        "user_scene": "unknown",
+        "topics": [
+          "companion",
+          "share"
+        ]
+      },
+      "created_at": 1777797625.565658
+    },
+    "week": {
+      "session_id": "eac2a1e4-8b54-448b-b68a-55b403473e4c",
+      "date": "2026-05-03",
+      "scope": "week",
+      "user_visible_text": "来，先把这周拆开看：周一到周三你至少搞定了两篇文献精读，周四虽然焦虑但还是写了综述框架，今天至少意识到要调整状态了对吧？我们总是容易记住没做的，忽略了已经完成的。",
+      "system_summary": {
+        "time_range": "week",
+        "dominant_emotion": "neutral",
+        "emotion_trend": "stable",
+        "avg_intensity": 0.34,
+        "energy_pattern": "stable",
+        "key_events": [],
+        "blockers": [],
+        "wins": [
+          "主动复盘",
+          "接受建议意愿高"
+        ],
+        "next_actions": [
+          "继续观察week节奏"
+        ],
+        "user_scene": "study",
+        "topics": [
+          "companion",
+          "share",
+          "food"
+        ]
+      },
+      "created_at": 1777797647.536663
+    }
+  }
+}

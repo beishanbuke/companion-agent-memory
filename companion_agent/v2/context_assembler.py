@@ -32,10 +32,19 @@ class ContextBlock:
     content: str
     priority: int = 50  # 0-100，越高越重要
     required: bool = True
+    token_cost: int = 0
 
 
 class ContextAssembler:
     """上下文装配器。"""
+
+    CONTEXT_BUDGET = {
+        "minimal": 1200,
+        "standard": 2200,
+        "task_heavy": 3200,
+        "thread_resume": 2600,
+        "review": 2800,
+    }
     
     # 各状态对应的上下文块配置
     STATE_BLOCK_CONFIG = {
@@ -65,9 +74,24 @@ class ContextAssembler:
             "excluded": [],
         },
         "review_reflection": {
-            "required": ["identity", "active_thread", "relationship"],
+            "required": ["identity", "active_thread", "relationship", "state_policy"],
             "optional": ["memory_recall", "background_thread"],
             "excluded": ["task_context"],
+        },
+        "task_done": {
+            "required": ["identity", "active_thread", "state_policy"],
+            "optional": ["relationship"],
+            "excluded": ["task_context", "tool_result"],
+        },
+        "quiet": {
+            "required": ["identity", "state_policy"],
+            "optional": ["active_thread", "relationship"],
+            "excluded": ["task_context", "tool_result", "background_thread"],
+        },
+        "clarify": {
+            "required": ["identity", "state_policy", "active_thread"],
+            "optional": ["relationship"],
+            "excluded": ["task_context", "tool_result"],
         },
         "light_chat": {
             "required": ["identity", "relationship"],
@@ -116,6 +140,7 @@ class ContextAssembler:
             content=persona,
             priority=90,
             required=True,
+            token_cost=self._estimate_tokens(persona),
         ))
         
         # === 2. State Policy Block ===
@@ -127,6 +152,7 @@ class ContextAssembler:
                     content=policy_text,
                     priority=85,
                     required="state_policy" in config["required"],
+                    token_cost=self._estimate_tokens(policy_text),
                 ))
         
         # === 3. Relationship Block ===
@@ -138,6 +164,7 @@ class ContextAssembler:
                     content=rel_text,
                     priority=70,
                     required="relationship" in config["required"],
+                    token_cost=self._estimate_tokens(rel_text),
                 ))
         
         # === 4. Active Thread Block ===
@@ -149,6 +176,7 @@ class ContextAssembler:
                     content=thread_text,
                     priority=80,
                     required="active_thread" in config["required"],
+                    token_cost=self._estimate_tokens(thread_text),
                 ))
         
         # === 5. Background Thread Block ===
@@ -161,6 +189,7 @@ class ContextAssembler:
                     content=bg_text,
                     priority=40,
                     required="background_thread" in config["required"],
+                    token_cost=self._estimate_tokens(bg_text),
                 ))
         
         # === 6. Task Context Block ===
@@ -171,6 +200,7 @@ class ContextAssembler:
                     content=task_context,
                     priority=75,
                     required="task_context" in config["required"],
+                    token_cost=self._estimate_tokens(task_context),
                 ))
         
         # === 7. Memory Recall Block ===
@@ -181,6 +211,7 @@ class ContextAssembler:
                     content=memory_context,
                     priority=60,
                     required="memory_recall" in config["required"],
+                    token_cost=self._estimate_tokens(memory_context),
                 ))
         
         # === 8. Tool Result Block ===
@@ -192,6 +223,7 @@ class ContextAssembler:
                     content=tool_text,
                     priority=65,
                     required="tool_result" in config["required"],
+                    token_cost=self._estimate_tokens(tool_text),
                 ))
         
         # 按优先级排序
@@ -216,18 +248,22 @@ class ContextAssembler:
         messages = []
         current_tokens = 0
         
-        # 系统提示词（合并所有 block）
         system_parts = []
-        
-        # 先加 required
-        for block in blocks:
-            if block.required:
-                system_parts.append(block.content)
-        
-        # 再加 optional（如果空间允许）
-        for block in blocks:
-            if not block.required:
-                system_parts.append(block.content)
+        used_tokens = 0
+
+        required_blocks = [b for b in blocks if b.required]
+        optional_blocks = sorted([b for b in blocks if not b.required], key=lambda b: b.priority, reverse=True)
+
+        for block in required_blocks:
+            system_parts.append(block.content)
+            used_tokens += block.token_cost or self._estimate_tokens(block.content)
+
+        for block in optional_blocks:
+            cost = block.token_cost or self._estimate_tokens(block.content)
+            if used_tokens + cost > max_tokens:
+                continue
+            system_parts.append(block.content)
+            used_tokens += cost
         
         system_content = "\n\n".join(system_parts)
         if system_content:
@@ -267,10 +303,17 @@ class ContextAssembler:
         
         if policy.max_questions == 0:
             parts.append("限制：不要提问")
-        
+        elif policy.clarify_needed:
+            parts.append("限制：最多只问一个澄清问题")
+
         if policy.response_length == "short":
             parts.append("长度：简短回复")
-        
+        elif policy.response_length == "medium":
+            parts.append("长度：中等，别铺太开")
+
+        if getattr(policy, "allow_recap", False):
+            parts.append("动作：先收拢复盘，再提炼一个最值得跟进的点")
+
         return "\n".join(parts)
     
     def _build_relationship_text(self, relationship: dict[str, Any]) -> str:
@@ -310,6 +353,13 @@ class ContextAssembler:
         
         if resume:
             parts.append(f"背景：{resume[:100]}")
+        capsule = thread.get("resume_capsule", {}) or {}
+        resume_hint = capsule.get("resume_hint_for_reply", "")
+        next_action = capsule.get("next_recommended_action", "")
+        if resume_hint:
+            parts.append(f"恢复提示：{resume_hint}")
+        if next_action:
+            parts.append(f"下一步：{next_action}")
         
         return "\n".join(parts)
     
@@ -322,6 +372,21 @@ class ContextAssembler:
         for thread in threads:
             name = thread.get("name", "未知")
             urgency = thread.get("urgency", 0)
-            parts.append(f"- {name}(紧急度:{urgency:.1f})")
+            capsule = thread.get("resume_capsule", {}) or {}
+            hint = capsule.get("resume_hint_for_reply", "")[:40]
+            line = f"- {name}(紧急度:{urgency:.1f})"
+            if hint:
+                line += f" {hint}"
+            parts.append(line)
         
         return "\n".join(parts)
+
+    def budget_for_policy(self, policy: Any) -> int:
+        profile = getattr(policy, "context_profile", "standard")
+        return self.CONTEXT_BUDGET.get(profile, self.CONTEXT_BUDGET["standard"])
+
+    @staticmethod
+    def _estimate_tokens(text: str) -> int:
+        if not text:
+            return 0
+        return max(1, len(text) // 4)

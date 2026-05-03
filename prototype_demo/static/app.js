@@ -1423,6 +1423,45 @@ function renderMemoryPanel(payload) {
       }
     }
   }
+
+  // Render review summary if available
+  const reviewSummarySection = document.getElementById("reviewSummarySection");
+  const reviewSummaryScope = document.getElementById("reviewSummaryScope");
+  const reviewSummaryContent = document.getElementById("reviewSummaryContent");
+  if (payload.review_summary && reviewSummarySection) {
+    reviewSummarySection.style.display = "block";
+    const scopeNames = { day: "今日复盘", week: "本周复盘", phase: "阶段复盘" };
+    const scope = payload.review_summary.scope || "";
+    const structured = payload.review_summary.structured || {};
+    
+    if (reviewSummaryScope) {
+      reviewSummaryScope.textContent = scopeNames[scope] || "复盘";
+    }
+    if (reviewSummaryContent) {
+      const parts = [];
+      if (structured.dominant_emotion) {
+        parts.push(`主导情绪: ${structured.dominant_emotion}`);
+      }
+      if (structured.energy_pattern) {
+        parts.push(`能量模式: ${structured.energy_pattern}`);
+      }
+      if (structured.blockers && structured.blockers.length) {
+        parts.push(`卡点: ${structured.blockers.join(", ")}`);
+      }
+      if (structured.wins && structured.wins.length) {
+        parts.push(`小成就: ${structured.wins.join(", ")}`);
+      }
+      if (structured.next_actions && structured.next_actions.length) {
+        parts.push(`下一步: ${structured.next_actions.join("; ")}`);
+      }
+      if (structured.key_events && structured.key_events.length) {
+        parts.push(`关键事件: ${structured.key_events.join("; ")}`);
+      }
+      reviewSummaryContent.innerHTML = parts.map(p => `<div class="review-summary-item">${escapeHtml(p)}</div>`).join("");
+    }
+  } else if (reviewSummarySection) {
+    reviewSummarySection.style.display = "none";
+  }
 }
 
 async function refreshState() {
