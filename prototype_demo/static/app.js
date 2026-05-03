@@ -1078,10 +1078,11 @@ async function saveCharacterCardFromForm() {
   const generatedPrompt = [
     `你将扮演角色「${name}」。`,
     `角色设定：${description}`,
-    "对话目标：优先提升陪伴感与可持续聊天体验，让用户愿意继续聊下去。",
-    "回复要求：自然口语、简洁有温度，先接住情绪或话头，再补充一个可延展点。",
-    "边界要求：不说教，不强行建议，不编造记忆；未被请求时避免长篇步骤化输出。",
-    "提问策略：每轮最多一个问题，优先使用开放式、轻压力追问。",
+    "对话目标：让聊天像在和一个真实、稳定、会接话的人说话，而不是在调用模板助手。",
+    "回复要求：自然口语、简洁、有生活感；先顺着用户当下的话头回，不要上来总结或分析。",
+    "建议策略：只有用户真的在求建议时，再给一个具体判断或下一步；别一开口就是大道理。",
+    "边界要求：不说教，不强行建议，不编造记忆，不装成心理咨询师或客服。",
+    "提问策略：每轮最多一个问题；如果不问也能成立，那就别硬问。",
   ].join("\n");
 
   await apiRequest("/api/cards/upsert", {
@@ -1928,9 +1929,9 @@ function renderContextTrace(debug) {
   // === Companion Runtime Brain Architecture ===
   html += `
     <div class="trace-section">
-      <div class="trace-section-title">Companion Runtime Brain</div>
+      <div class="trace-section-title">理解链路</div>
       <div class="trace-stat">
-        <strong>Flow:</strong> Signal Detection → State Update → Skill Selection → Micro Context Injection → Response
+        <strong>处理流程：</strong> 状态捕捉 → 策略选择 → 能力调用 → 回复生成
       </div>
     </div>
   `;
@@ -1941,7 +1942,7 @@ function renderContextTrace(debug) {
     const signals = signalStep.data;
     html += `
       <div class="trace-section">
-        <div class="trace-section-title">1. Detected Signals</div>
+        <div class="trace-section-title">它捕捉到什么状态</div>
         <div class="trace-signals">
     `;
 
@@ -1979,21 +1980,19 @@ function renderContextTrace(debug) {
     html += `</div></div>`;
   }
 
-  // === Step 2: State Update ===
-  const stateStep = trace.find(t => t.step === "State Update");
-  if (stateStep && stateStep.data) {
+  // === Step 2: Response Policy ===
+  const policyStep = trace.find(t => t.step === "Response Policy");
+  if (policyStep && policyStep.data) {
+    const p = policyStep.data;
+    const forbidden = (p.forbidden_patterns || []).join("、") || "无";
     html += `
       <div class="trace-section">
-        <div class="trace-section-title">2. User State Update</div>
+        <div class="trace-section-title">这轮为什么这样说</div>
         <div class="trace-state">
-          <div class="trace-stat">Changes: ${stateStep.data.changes ? stateStep.data.changes.length : 0}</div>
-          ${stateStep.data.changes && stateStep.data.changes.length > 0 ? `
-            <ul class="trace-state-list">
-              ${stateStep.data.changes.map(c => `
-                <li>${escapeHtml(c.type)}: ${escapeHtml(JSON.stringify(c))}</li>
-              `).join("")}
-            </ul>
-          ` : '<div class="trace-stat">No state changes this turn.</div>'}
+          <div class="trace-stat"><strong>策略模式：</strong>${escapeHtml(p.mode)}</div>
+          <div class="trace-stat"><strong>回复长度：</strong>最多 ${p.max_sentences} 句</div>
+          <div class="trace-stat"><strong>温暖度：</strong>${p.warmth}/3 · <strong>幽默度：</strong>${p.humor}/2</div>
+          <div class="trace-stat"><strong>避免说：</strong>${escapeHtml(forbidden)}</div>
         </div>
       </div>
     `;
@@ -2004,20 +2003,22 @@ function renderContextTrace(debug) {
   if (skillStep && skillStep.data) {
     html += `
       <div class="trace-section">
-        <div class="trace-section-title">3. Selected Skills</div>
+        <div class="trace-section-title">这轮用了哪些能力</div>
         <div class="trace-skills">
     `;
     for (const skill of skillStep.data) {
+      const modeLabel = skill.mode === "primary" ? "主要" :
+                        skill.mode === "support" ? "辅助" : "背景";
       const modeColor = skill.mode === "primary" ? "var(--accent-warm)" :
                         skill.mode === "support" ? "var(--info)" : "var(--text-muted)";
       html += `
         <div class="trace-skill-card">
           <div class="trace-skill-header">
             <span class="trace-skill-name">${escapeHtml(skill.name)}</span>
-            <span class="trace-skill-mode" style="color: ${modeColor}">${escapeHtml(skill.mode)}</span>
+            <span class="trace-skill-mode" style="color: ${modeColor}">${escapeHtml(modeLabel)}</span>
           </div>
           <div class="trace-skill-meta">
-            ${escapeHtml(skill.category)} · score: ${skill.score}
+            ${escapeHtml(skill.category)} · 匹配度 ${Math.round(skill.score * 100)}%
           </div>
         </div>
       `;
@@ -2025,63 +2026,29 @@ function renderContextTrace(debug) {
     html += `</div></div>`;
   }
 
-  // === Step 4: Micro Context Capsules ===
-  const capsuleBlocks = blocks.filter(b => b.type === "mood_signal" || b.type === "skill_hint" || b.type === "scene" || b.type === "habit" || b.type === "state_summary" || b.type === "robot_action_hint");
-  if (capsuleBlocks.length > 0) {
+  // === Step 4: History Window ===
+  const historyStep = trace.find(t => t.step === "History Window");
+  if (historyStep && historyStep.data) {
     html += `
       <div class="trace-section">
-        <div class="trace-section-title">4. Micro Context Capsules (${capsuleBlocks.length})</div>
-        <div class="trace-capsules">
+        <div class="trace-section-title">参考了最近对话</div>
+        <div class="trace-stat">使用了最近 ${historyStep.data.length} 条消息作为上下文</div>
+      </div>
     `;
-    for (const b of capsuleBlocks) {
-      html += `
-        <div class="trace-capsule">
-          <div class="trace-capsule-header">
-            <span class="trace-capsule-type">${escapeHtml(b.type)}</span>
-            <span class="trace-capsule-tokens">${b.tokens} tokens</span>
-          </div>
-          <div class="trace-capsule-content">${escapeHtml(b.content)}</div>
-        </div>
-      `;
-    }
-    html += `</div></div>`;
   }
 
   // === Step 5: Token Budget ===
   html += `
     <div class="trace-section">
-      <div class="trace-section-title">5. Token Budget</div>
+      <div class="trace-section-title">上下文用量</div>
       <div class="trace-stat">
-        Used: ${tokenSummary.used_tokens || 0} / ${tokenSummary.max_input_tokens || 9000}
+        已用 ${tokenSummary.used_tokens || 0} / ${tokenSummary.max_input_tokens || 9000} tokens
       </div>
       <div class="trace-stat">
-        Removed: ${(tokenSummary.removed_blocks || []).length} blocks
+        因容量限制移除了 ${(tokenSummary.removed_blocks || []).length} 个上下文块
       </div>
     </div>
   `;
-
-  // === All Blocks ===
-  html += `
-    <div class="trace-section">
-      <div class="trace-section-title">All Context Blocks (${blocks.length})</div>
-      <div class="trace-blocks">
-  `;
-  for (const b of blocks) {
-    html += `
-      <div class="trace-block">
-        <div class="trace-block-header">
-          <span class="trace-block-title">${escapeHtml(b.title)}</span>
-          <span class="trace-block-meta">${escapeHtml(b.type)} · priority ${b.priority} · ${b.tokens} tokens</span>
-        </div>
-        <div class="trace-block-reason">${escapeHtml(b.reason || "")}</div>
-        <details class="trace-block-details">
-          <summary>Show content</summary>
-          <pre class="trace-pre">${escapeHtml(b.content)}</pre>
-        </details>
-      </div>
-    `;
-  }
-  html += `</div></div>`;
 
   body.innerHTML = html;
 }

@@ -154,6 +154,9 @@ from context_engine_v2.types import ChatMessage
 from companion_agent import CompanionAgentCore
 from companion_agent.persona import PersonaConfig
 
+# Companion Agent Core V2
+from companion_agent.v2 import CompanionAgentCoreV2, CharacterStyle
+
 from websockets.asyncio.client import connect as websocket_connect
 from websockets.exceptions import ConnectionClosedOK
 
@@ -162,15 +165,26 @@ SYSTEM_PROMPT = """你是一个温和、自然、简洁的陪伴型助手。
 请像真实的对话伙伴一样回答，不要显得像在背诵资料。
 如果系统提供了长期记忆，请合理利用，让回答体现出连续性和了解感。
 如果没有长期记忆，就只基于当前对话作答，不要假装记得以前的事情。
+默认先像人在接话，再决定要不要建议、解释或提问。
 """
 
-PROMPT_GUARDRAILS = (
-    "[通道声明] 输出即语音，要求听觉自洽。禁止任何依赖视觉/文字形态的表达。"
-    "[内容禁令] 谐音梗、拆字游戏、emoji叙事、ASCII图形、代码符号直读(C++→C plus plus)、'如图所示'等视觉指代。"
-    "[表达禁令] 禁止输出任何括号语气、动作、旁白、舞台说明（如'(停顿)'、'（笑）'）。"
-    "[语言纪律] 若扮演方言角色(如粤语)，必须使用对应方言的逻辑语法和表达节奏，禁止'普语句法+方言词汇'的拼接腔。"
-    "[交互控制] 单轮最多一个提问，禁止 unsolicited advice(非用户索要不给建议)，禁止连环反问。"
-)
+TEXT_CHAT_GUARDRAILS = """\
+[文字聊天规则]
+回复自然、简洁、有生活感。
+默认不用列表；只有用户明确要步骤/选项时再列。
+可以出现必要的代码/英文缩写。
+不要输出舞台说明或括号动作。
+不要写成客服话术、心理咨询腔或模板小作文。
+"""
+
+VOICE_CHAT_GUARDRAILS = """\
+[语音输出规则]
+输出即语音，要求听觉自洽。
+禁止依赖视觉/文字形态的表达。
+禁止 emoji 叙事、ASCII 图形、代码符号直读。
+禁止括号动作、旁白、舞台说明。
+单轮最多一个问题。
+"""
 
 def env_flag(name: str, default: bool) -> bool:
     value = os.getenv(name)
@@ -213,7 +227,7 @@ def _default_card() -> dict[str, Any]:
     return {
         "id": "default_companion",
         "name": "温和陪伴",
-        "system_prompt": _with_prompt_guardrails(SYSTEM_PROMPT),
+        "system_prompt": _with_prompt_guardrails(SYSTEM_PROMPT, modality="text"),
         "llm": {"model": os.getenv("OPENAI_MODEL", "").strip()},
         "voice": {
             "provider": "volcengine",
@@ -229,10 +243,20 @@ def _normalize_card_id(value: str) -> str:
     return normalized.strip("_").lower()[:64]
 
 
-def _with_prompt_guardrails(prompt: str) -> str:
+def _with_prompt_guardrails(prompt: str, modality: str = "text") -> str:
     normalized = str(prompt or "").strip()
     if not normalized:
         return ""
+
+    def _strip_legacy_guardrails(text: str) -> str:
+        cleaned = text
+        legacy_block_patterns = (
+            r"(?:\[(?:通道声明|内容禁令|表达禁令|语言纪律|交互控制)\][^\n]*)+\s*",
+            r"(?:\[(?:语音输出|交互原则|表达控制)\][^\n]*)+\s*",
+        )
+        for pattern in legacy_block_patterns:
+            cleaned = re.sub(pattern, "", cleaned, flags=re.DOTALL).strip()
+        return cleaned
 
     # Remove old manual preface to avoid duplicated guardrails after migration.
     if normalized.startswith("前置说明："):
@@ -240,9 +264,16 @@ def _with_prompt_guardrails(prompt: str) -> str:
         if len(parts) == 2:
             normalized = parts[1].strip()
 
-    if normalized.startswith(PROMPT_GUARDRAILS):
-        return normalized
-    return f"{PROMPT_GUARDRAILS}\n\n{normalized}"
+    guardrails = VOICE_CHAT_GUARDRAILS if modality == "voice" else TEXT_CHAT_GUARDRAILS
+    body = normalized
+    if normalized.startswith(guardrails):
+        body = normalized[len(guardrails):].strip()
+
+    body = _strip_legacy_guardrails(body)
+    if not body:
+        body = SYSTEM_PROMPT.strip()
+
+    return f"{guardrails}\n\n{body}"
 
 
 def _normalize_character_card(raw: dict[str, Any]) -> dict[str, Any]:
@@ -250,7 +281,7 @@ def _normalize_character_card(raw: dict[str, Any]) -> dict[str, Any]:
     if not card_id:
         raise ValueError("card id is required")
     name = str(raw.get("name") or card_id).strip()
-    system_prompt = _with_prompt_guardrails(str(raw.get("system_prompt") or ""))
+    system_prompt = _with_prompt_guardrails(str(raw.get("system_prompt") or ""), modality="text")
     if not system_prompt:
         raise ValueError(f"card `{card_id}` missing system_prompt")
     voice = raw.get("voice") or {}
@@ -1158,6 +1189,8 @@ def count_retrieved_items(memory_text: str) -> int:
 
 def should_store_user_message(user_message: str) -> bool:
     text = user_message.strip().lower()
+
+    # Never store memory probe queries
     memory_probe_patterns = (
         r"^你还记得",
         r"^你记得",
@@ -1174,7 +1207,29 @@ def should_store_user_message(user_message: str) -> bool:
     )
     if any(re.search(pattern, text) for pattern in memory_probe_patterns):
         return False
-    return True
+
+    # Only store stable identity, preferences, style feedback, and long-term patterns
+    stable_patterns = [
+        r"我叫",
+        r"我是",
+        r"我住在",
+        r"我喜欢",
+        r"我不喜欢",
+        r"我讨厌",
+        r"我习惯",
+        r"我经常",
+        r"我一般",
+        r"我希望你",
+        r"你以后",
+        r"以后回复",
+        r"不要.*说教",
+        r"别.*长篇",
+        r"我更喜欢",
+        r"我的项目",
+        r"我最近在做",
+    ]
+
+    return any(re.search(pattern, text) for pattern in stable_patterns)
 
 
 def serialize_memory(snapshot: dict[str, Any]) -> dict[str, Any]:
@@ -1327,8 +1382,12 @@ class DemoSession:
     last_memory_count: int = 0
     current_model: str = ""
     companion_core: CompanionAgentCore | None = field(default=None, repr=False)
+    companion_core_v2: CompanionAgentCoreV2 | None = field(default=None, repr=False)
     _event_queue: list[dict[str, Any]] = field(default_factory=list, repr=False)
     _event_listeners: list[asyncio.Queue] = field(default_factory=list, repr=False)
+    # 会话标识
+    session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str = "demo-user"
 
     def __post_init__(self):
         if self.companion_core is None:
@@ -1336,10 +1395,37 @@ class DemoSession:
                 memory_engine=self.memory,
                 persona_config=PersonaConfig(name="姜姜"),
             )
+        if self.companion_core_v2 is None:
+            self.companion_core_v2 = CompanionAgentCoreV2(
+                memory_engine=self.memory,
+                persona_config=PersonaConfig(name="姜姜"),
+                character_style=CharacterStyle(name="姜姜"),
+                session_id=self.session_id,
+                user_id=self.user_id,
+            )
 
     def _active_card(self) -> dict[str, Any]:
         return CARD_STORE.get_active_card()
-
+    
+    async def _stream_v2_reply(
+        self,
+        user_message: str,
+        memory_enabled: bool,
+        active_card: dict[str, Any],
+    ) -> list[dict]:
+        """辅助方法：调用 v2 流式生成并收集所有 chunk。"""
+        chunks = []
+        async for chunk in self.companion_core_v2.generate_reply_streaming(
+            user_message=user_message,
+            conversation_history=self.short_history,
+            character_card_prompt=active_card.get("system_prompt", ""),
+            memory_enabled=memory_enabled,
+            session_id=self.session_id,
+            user_id=self.user_id,
+        ):
+            chunks.append(chunk)
+        return chunks
+    
     def _push_event(self, event_type: str, data: dict[str, Any]) -> None:
         """Push an event to all SSE listeners."""
         event = {"type": event_type, "data": data, "timestamp": time.time()}
@@ -1375,9 +1461,85 @@ class DemoSession:
         memory_enabled: bool,
         context_engine_v2: bool = False,
         debug: bool = False,
+        use_v2_brain: bool = False,
     ) -> dict[str, Any]:
         before_snapshot = self.memory.snapshot()
         active_card = self._active_card()
+
+        # === Companion Agent Core V2 ===
+        if use_v2_brain:
+            # 新流程：generate_reply 内部完成 signal -> thread -> state -> policy -> assemble -> generate -> judge -> learn
+            v2_result = await self.companion_core_v2.generate_reply(
+                user_message=user_message,
+                conversation_history=self.short_history,
+                character_card_prompt=active_card.get("system_prompt", ""),
+                memory_enabled=memory_enabled,
+                session_id=self.session_id,
+                user_id=self.user_id,
+            )
+            assistant_reply = v2_result.reply
+
+            self.short_history.append({"role": "user", "content": user_message})
+            self.short_history.append({"role": "assistant", "content": assistant_reply})
+
+            # Memory update (统一由编排层决策，session 层只提交一次)
+            after_snapshot = before_snapshot
+            updates = []
+            if memory_enabled and v2_result.memory_decision.action in ("add", "update"):
+                if not v2_result.memory_decision.requires_confirmation:
+                    # 调用 commit_memory 统一提交（避免双写）
+                    memory_committed = await self.companion_core_v2.commit_memory()
+                    if memory_committed:
+                        after_snapshot = self.memory.snapshot()
+                        updates = diff_snapshots(before_snapshot, after_snapshot)
+                else:
+                    updates.append({
+                        "change_type": "pending",
+                        "label": "记忆待确认",
+                        "reason": v2_result.memory_decision.reason,
+                        "privacy_level": v2_result.memory_decision.privacy_level,
+                    })
+
+            self.last_updates = updates
+            self.last_memory_text = v2_result.memory_context.to_prompt_section()
+            self.last_memory_count = v2_result.memory_context.memory_count
+
+            return {
+                "reply": assistant_reply,
+                "messages": self.short_history,
+                "memory_panel": serialize_memory(after_snapshot),
+                "memory_used": v2_result.memory_context.memory_count > 0,
+                "memory_used_count": v2_result.memory_context.memory_count,
+                "memory_preview": v2_result.memory_context.to_prompt_section(),
+                "updates": updates,
+                "active_card_id": active_card.get("id"),
+                "active_card_name": active_card.get("name"),
+                "ncp": None,
+                "companion": {
+                    "situation": v2_result.intent.primary_intent,
+                    "situation_confidence": v2_result.intent.intent_confidence,
+                    "brain_mode": v2_result.policy.goal,
+                    "mode_confidence": 0.8,
+                    "memory_decision": {
+                        "action": v2_result.memory_decision.action,
+                        "reason": v2_result.memory_decision.reason,
+                        "requires_confirmation": v2_result.memory_decision.requires_confirmation,
+                    },
+                    "emotional_state": v2_result.intent.emotional_state,
+                    "conversation_rhythm": v2_result.intent.conversation_rhythm,
+                    "current_state": v2_result.conversation_state.current_state,
+                    "active_thread": v2_result.active_thread.get("name", ""),
+                    "safety_flag": v2_result.safety_flag,
+                },
+                "context_meta": {
+                    "scene": v2_result.intent.task_category,
+                    "history_window": len(self.short_history),
+                    "memory_limit": v2_result.memory_context.memory_count,
+                    "companion_enabled": True,
+                    "v2_brain": True,
+                },
+                "debug_info": v2_result.debug_info,
+            }
 
         if context_engine_v2:
             # === Context Engine V3 (Companion Runtime Brain) ===
@@ -1399,7 +1561,7 @@ class DemoSession:
                 debug=debug,
                 character_prompt=active_card.get("system_prompt", ""),
             )
-            ctx_result = build_context_v3(ctx_input)
+            ctx_result = await build_context_v3(ctx_input)
 
             # Inject memory into blocks if available
             if memory_text and memory_count > 0:
@@ -1631,9 +1793,97 @@ class DemoSession:
         memory_enabled: bool,
         context_engine_v2: bool = False,
         debug: bool = False,
+        use_v2_brain: bool = False,
     ):
         before_snapshot = self.memory.snapshot()
         active_card = self._active_card()
+
+        # === Companion Agent Core V2 (Streaming) ===
+        if use_v2_brain:
+            assistant_reply = ""
+            in_parenthetical = False
+            v2_result = None
+
+            for chunk in asyncio.run(self._stream_v2_reply(
+                user_message=user_message,
+                memory_enabled=memory_enabled,
+                active_card=active_card,
+            )):
+                if chunk["type"] == "delta":
+                    filtered_chunk, in_parenthetical = _sanitize_stream_chunk(chunk["delta"], in_parenthetical)
+                    if not filtered_chunk:
+                        continue
+                    assistant_reply += filtered_chunk
+                    yield {"type": "assistant_delta", "delta": filtered_chunk}
+                elif chunk["type"] == "final":
+                    v2_result = chunk["result"]
+
+            assistant_reply = _sanitize_assistant_text(assistant_reply)
+
+            self.short_history.append({"role": "user", "content": user_message})
+            self.short_history.append({"role": "assistant", "content": assistant_reply})
+
+            after_snapshot = before_snapshot
+            updates = []
+            if v2_result and memory_enabled and v2_result.memory_decision.action in ("add", "update"):
+                if not v2_result.memory_decision.requires_confirmation:
+                    memory_committed = asyncio.run(self.companion_core_v2.commit_memory())
+                    if memory_committed:
+                        after_snapshot = self.memory.snapshot()
+                        updates = diff_snapshots(before_snapshot, after_snapshot)
+                else:
+                    updates.append({
+                        "change_type": "pending",
+                        "label": "记忆待确认",
+                        "reason": v2_result.memory_decision.reason,
+                        "privacy_level": v2_result.memory_decision.privacy_level,
+                    })
+
+            self.last_updates = updates
+            if v2_result:
+                self.last_memory_text = v2_result.memory_context.to_prompt_section()
+                self.last_memory_count = v2_result.memory_context.memory_count
+
+            yield {
+                "type": "final",
+                "payload": {
+                    "reply": assistant_reply,
+                    "messages": self.short_history,
+                    "memory_panel": serialize_memory(after_snapshot),
+                    "memory_used": v2_result.memory_context.memory_count > 0 if v2_result else False,
+                    "memory_used_count": v2_result.memory_context.memory_count if v2_result else 0,
+                    "memory_preview": v2_result.memory_context.to_prompt_section() if v2_result else "",
+                    "updates": updates,
+                    "active_card_id": active_card.get("id"),
+                    "active_card_name": active_card.get("name"),
+                    "ncp": None,
+                    "companion": {
+                        "situation": v2_result.intent.primary_intent if v2_result else "",
+                        "situation_confidence": v2_result.intent.intent_confidence if v2_result else 0,
+                        "brain_mode": v2_result.policy.goal if v2_result else "",
+                        "mode_confidence": 0.8,
+                        "memory_decision": {
+                            "action": v2_result.memory_decision.action if v2_result else "ignore",
+                            "reason": v2_result.memory_decision.reason if v2_result else "",
+                            "requires_confirmation": v2_result.memory_decision.requires_confirmation if v2_result else False,
+                        },
+                        "emotional_state": v2_result.intent.emotional_state if v2_result else "",
+                        "conversation_rhythm": v2_result.intent.conversation_rhythm if v2_result else "",
+                        "current_state": v2_result.conversation_state.current_state if v2_result else "",
+                        "active_thread": v2_result.active_thread.get("name", "") if v2_result else "",
+                        "safety_flag": v2_result.safety_flag if v2_result else False,
+                    },
+                    "context_meta": {
+                        "scene": v2_result.intent.task_category if v2_result else "",
+                        "history_window": len(self.short_history),
+                        "memory_limit": v2_result.memory_context.memory_count if v2_result else 0,
+                        "companion_enabled": True,
+                        "v2_brain": True,
+                    },
+                    "debug_info": v2_result.debug_info if v2_result else {},
+                },
+            }
+            return
 
         if context_engine_v2:
             # === Context Engine V3 (Companion Runtime Brain) ===
@@ -1655,7 +1905,7 @@ class DemoSession:
                 debug=debug,
                 character_prompt=active_card.get("system_prompt", ""),
             )
-            ctx_result = build_context_v3(ctx_input)
+            ctx_result = asyncio.run(build_context_v3(ctx_input))
 
             # Inject memory into blocks if available
             if memory_text and memory_count > 0:
@@ -1899,6 +2149,11 @@ class DemoSession:
         self.last_updates = []
         self.last_memory_text = ""
         self.last_memory_count = 0
+        # Reset v2 state tracker (full reset)
+        if self.companion_core_v2:
+            self.companion_core_v2.state_tracker.reset_session(full_reset=True)
+            # Relationship memory can be optionally reset too
+            # self.companion_core_v2.relationship_memory._profiles.clear()
         return self.state()
 
     async def clear_memory(self) -> dict[str, Any]:
@@ -2167,6 +2422,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 message = str(body.get("message", "")).strip()
                 memory_enabled = bool(body.get("memory_enabled", True))
                 context_engine_v2 = bool(body.get("context_engine_v2", False))
+                use_v2_brain = bool(body.get("use_v2_brain", False))
                 debug = bool(body.get("debug", False))
                 if not message:
                     self._send_json({"error": "Message is required"}, status=HTTPStatus.BAD_REQUEST)
@@ -2178,6 +2434,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                             message,
                             memory_enabled,
                             context_engine_v2=context_engine_v2,
+                            use_v2_brain=use_v2_brain,
                             debug=debug,
                         ):
                             self._send_stream_event(event)
@@ -2260,6 +2517,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 message = str(body.get("message", "")).strip()
                 memory_enabled = bool(body.get("memory_enabled", True))
                 context_engine_v2 = bool(body.get("context_engine_v2", False))
+                use_v2_brain = bool(body.get("use_v2_brain", False))
                 debug = bool(body.get("debug", False))
                 if not message:
                     self._send_json({"error": "Message is required"}, status=HTTPStatus.BAD_REQUEST)
@@ -2270,6 +2528,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                             message,
                             memory_enabled,
                             context_engine_v2=context_engine_v2,
+                            use_v2_brain=use_v2_brain,
                             debug=debug,
                         )
                     )
@@ -2371,7 +2630,12 @@ class PrototypeHandler(BaseHTTPRequestHandler):
 
             if parsed.path == "/api/companion/status":
                 with SESSION_LOCK:
-                    payload = SESSION.companion_core.get_status()
+                    v2_status = SESSION.companion_core_v2.get_status() if SESSION.companion_core_v2 else {}
+                    legacy_status = SESSION.companion_core.get_status() if SESSION.companion_core else {}
+                    payload = {
+                        "v2": v2_status,
+                        "legacy": legacy_status,
+                    }
                 self._send_json(payload)
                 return
 
@@ -2571,7 +2835,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     host = os.getenv("PROTOTYPE_HOST", "127.0.0.1")
-    port = int(os.getenv("PROTOTYPE_PORT", "8787"))
+    port = int(os.getenv("PROTOTYPE_PORT", "7897"))
     server = ThreadingHTTPServer((host, port), PrototypeHandler)
     print(f"Prototype server running at http://{host}:{port}")
     print("Press Ctrl+C to stop.")

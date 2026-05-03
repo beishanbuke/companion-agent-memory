@@ -90,7 +90,7 @@ def memory_api_base_url() -> str:
     host = os.getenv("PROTOTYPE_HOST", "127.0.0.1").strip() or "127.0.0.1"
     if host in {"0.0.0.0", "::"}:
         host = "127.0.0.1"
-    port = int(os.getenv("PROTOTYPE_PORT", "8787"))
+    port = int(os.getenv("PROTOTYPE_PORT", "7897"))
     return f"http://{host}:{port}".rstrip("/")
 
 
