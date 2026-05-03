@@ -1,31 +1,42 @@
-# 姜姜 - Companion Agent Core
+# 姜姜 - Companion Agent Memory
 
-## 项目概述
+**姜姜** 是一个本科生陪伴型 AI Agent，具备双脑模式（陪伴/任务）、显式状态机、主线管理和 5 层记忆系统。不是工具调用集合，而是有脾气、有边界、会成长的对话搭子。
 
-**姜姜** 是一个长期陪伴型 AI Agent，具备分层记忆管理、情境路由、人格管理和技能系统。
+## 核心特性
 
-### 核心特性
+### v2.1 架构升级
+- **双脑路由**：Chat Mode（纯陪伴/接话/玩梗）vs Task Mode（学习/饮食/工具调用）
+- **显式状态机**：7 种状态（light_chat / support_crisis / pushable_low / task_exec / task_done / quiet / clarify）
+- **主线管理**：前台/后台/休眠主线，自动话题切换和主线恢复
+- **策略规划器**：每轮显式策略（goal / pull_main_thread / allow_humor / allow_advice / tool_calls）
+- **关系记忆**：每轮学习用户偏好（接话风格/互怼容忍度/建议阈值/梗感），持久化到 JSON
 
-- **分层记忆系统** (5 层)：用户档案、偏好、长期目标、事件记忆、安全笔记
-- **情境路由**：自动识别 10 种对话情境并路由到对应处理逻辑
-- **人格管理**：支持多角色卡切换，每个角色有独立的语音音色和描述
-- **记忆策略**：智能决策是否存储、更新或删除记忆，支持隐私保护
-- **技能系统**：3 级技能架构（内置/领域/外部），可动态扩展
-- **安全边界**：不伪装人类、不制造情感依赖、敏感信息需确认
+### 记忆系统（5 层）
+- **profile**: 用户档案 - 稳定事实
+- **preferences**: 用户偏好 - 可带场景/极性
+- **long_term_goals**: 长期目标
+- **episodic_events**: 事件记忆 - 时间线记录
+- **safety_notes**: 安全笔记 - 敏感/重要标记
 
-## 技术栈
+### 本科生生活能力包
+- **饮食分析**：当前时段推荐 + 克制提醒（不是无限纵容）
+- **学习规划**：自然语言任务解析 → 微计划（15分钟起步）
+- **社交回复**：情感回复建议 + 拒绝脚本 + 边界检查
 
-- **Backend**: Python 3.10+, FastAPI-style HTTP server
-- **Memory Engine**: StructuredLongTermMemory (JSON-based, local)
-- **LLM**: OpenAI-compatible API (GPT-4o-mini / 自定义端点)
-- **Voice**: VolcEngine TTS + WebRTC real-time voice
-- **Frontend**: Vanilla HTML/CSS/JS (无框架依赖)
+### 技能系统（3 级）
+- **Tier 1**: emotional-companion, memory-manager, safety-handler
+- **Tier 2**: music-dj, study-coach, coding-helper, planning-helper
+- **Tier 3**: tool-caller (MCP)
 
 ## 快速启动
 
 ### 环境准备
 
 ```bash
+# 克隆仓库
+git clone https://github.com/beishanbuke/companion-agent-memory.git
+cd companion-agent-memory
+
 # 安装依赖
 uv sync
 
@@ -40,67 +51,102 @@ cp env.example .env
 ### 启动服务
 
 ```bash
-# 一键启动（记忆演示页 + 语音服务）
+# 一键启动（演示页 + 语音服务）
 ./start_prototype_demo.sh
 
 # 服务地址：
-# - 记忆演示页: http://127.0.0.1:7897
+# - 演示页: http://127.0.0.1:7897
 # - 语音客户端: http://127.0.0.1:7860/client
 ```
 
 ## 架构文档
 
-### Companion Agent Core 架构
+### v2 架构总览
 
 ```
-CompanionAgentCore
-├── SystemPersonaLayer          # 固定人格、语气、安全规则
-├── MemoryLayerAdapter          # 5层记忆读取接口 (Adapter模式)
-├── MemoryUpdatePolicy          # 每轮记忆更新决策
-├── SituationRouter             # 意图分类与路由
-├── SkillRegistry               # 技能加载与执行
-└── ResponsePolicy              # 响应编排
+companion_agent/
+├── core_v2.py              # 主编排器（状态机版）
+├── v2/
+│   ├── intent_engine.py    # LLM意图理解（信号提取器）
+│   ├── state_tracker.py    # 显式状态机
+│   ├── thread_manager.py   # 前台/后台主线管理
+│   ├── policy_planner.py   # 策略规划器
+│   ├── context_assembler.py # 渐进式上下文装配
+│   ├── tool_contract.py    # 工具注册与执行
+│   ├── llm_runtime.py      # 统一 LLM 运行时
+│   ├── persona_v2.py       # 带风格检索的角色系统
+│   ├── relationship_memory.py # 关系感数据层
+│   ├── life_skills.py      # 本科生生活能力包
+│   └── response_judge.py   # 回复后评审
 ```
 
-### 记忆 5 层模型
+### v2 处理流程
 
-- **profile**: 用户档案 (persona_slots) - 稳定事实
-- **preferences**: 用户偏好 (preference_slots + profiles) - 可带场景/极性
-- **long_term_goals**: 长期目标 - 从事件和显式目标中提取
-- **episodic_events**: 事件记忆 - 时间线记录
-- **safety_notes**: 安全笔记 - 敏感/重要标记记忆
+```
+用户消息
+  → IntentEngine（信号提取）
+    → ThreadManager（话题切换检测）
+      → StateTracker（显式状态机转移）
+        → PolicyPlanner（本轮策略决策）
+          → MemoryAdapter（记忆检索）
+            → ToolRegistry（工具执行）
+              → ContextAssembler（渐进式装配）
+                → LLMRuntime（生成回复）
+                  → ResponseJudge（回复评审）
+                    → RelationshipMemory（关系学习）
+                      → 返回回复
+```
 
-### 10 种情境分类
+### 显式状态机
 
-1. `casual_chat` - 普通聊天
-2. `emotional_support` - 情绪陪伴
-3. `planning` - 计划制定
-4. `music_companion` - 音乐推荐/播放
-5. `learning_coach` - 学习辅导
-6. `coding_helper` - 编程帮助
-7. `memory_query` - 记忆查询 ("你还记得吗")
-8. `tool_task` - 工具调用
-9. `safety_sensitive` - 安全敏感
-10. `personal_routine` - 日常生活
+| 状态 | 触发条件 | 行为约束 |
+|------|----------|----------|
+| `light_chat` | 情绪稳定，无紧急任务 | 自然接话，允许玩梗 |
+| `support_crisis` | 情绪强度 > 0.7 | 只陪伴，不给建议，不玩梗 |
+| `pushable_low` | 低能量但 action_receptivity > 0.3 | 先共情，再试探性建议 |
+| `task_exec` | 明确任务 + urgency > 0.5 | 专注高效，完成后过渡 |
+| `task_done` | 任务刚完成 | 正向反馈，自然回到闲聊 |
+| `quiet` | 用户明确想安静 | 简短回复，温暖收尾 |
+| `clarify` | clarification_confidence > 0.6 | 礼貌请用户说明 |
 
-### 技能 3 级体系
+### 信号提取器（IntentEngine）
 
-- **Tier 1 (内置)**: emotional-companion, memory-manager, safety-handler
-- **Tier 2 (领域)**: music-dj, study-coach, coding-helper, planning-helper
-- **Tier 3 (外部)**: tool-caller (MCP)
+除基础意图外，提取 5 个关键信号：
+- **action_receptivity**: 0-1，用户接受行动的意愿
+- **topic_shift_type**: emotional_escape / functional_detour / new_thread / return_to_thread / none
+- **pressure_signal**: 0-1，压力信号强度
+- **thread_candidates**: 可能的主线话题列表
+- **clarification_confidence**: 0-1，是否需要澄清
+
+### 主线管理（ThreadManager）
+
+- **前台主线**：当前对话焦点，只有一个
+- **后台主线**：最多保留 3 个，分数衰减
+- **休眠主线**：超出容量后降级
+- **拉回规则**：light_chat 状态下，后台存在高压未解决主线，用户情绪稳定时自动拉回
+
+### 关系记忆（RelationshipMemory）
+
+每轮学习并持久化：
+- **comfort_style**: gentle / direct / balanced
+- **banter_tolerance**: 0-1，互怼容忍度
+- **advice_threshold**: 0-1，建议接受度
+- **humor_mode**: off / light / active
+
+文件：`relationship_memory_{user_id}.json`
 
 ## API 接口
 
 ### 对话接口
 
 ```bash
-# 流式对话
+# 流式对话（推荐）
 POST /api/chat-stream
-Body: { "message": "用户消息", "memory_enabled": true }
+Body: { "message": "用户消息", "memory_enabled": true, "use_v2_brain": true }
 
 # 非流式对话
 POST /api/chat
-Body: { "message": "用户消息", "memory_enabled": true }
+Body: { "message": "用户消息", "memory_enabled": true, "use_v2_brain": true }
 ```
 
 ### 记忆接口
@@ -132,132 +178,82 @@ Body: { "card_id": "xxx" }
 # 创建/更新角色
 POST /api/cards/upsert
 Body: { "card": { "id": "", "name": "", "system_prompt": "", "voice": {...} } }
-
-# 删除角色
-POST /api/cards/delete
-Body: { "card_id": "xxx" }
 ```
 
-### Agent 状态接口
+### Agent 状态
 
 ```bash
-# 获取 Agent 状态
+# 获取 v2 状态
 POST /api/companion/status
-
-# 获取情境和技能列表
-POST /api/companion/situations
 ```
+
+## 开发规范
+
+### 修改记忆模块
+**禁止直接修改 `memory/` 目录。** 通过 `MemoryLayerAdapter` 操作：
+```python
+from companion_agent.memory_adapter import MemoryLayerAdapter
+adapter = MemoryLayerAdapter(memory_engine)
+context = await adapter.retrieve_tiered(query="...")
+```
+
+### 新增工具
+在 `companion_agent/v2/tool_contract.py` 中注册 `ToolContract`：
+```python
+MY_TOOL = ToolContract(
+    name="my_tool",
+    description="工具描述",
+    tool_type="reasoning",  # reasoning / lookup / action
+    input_schema={...},
+    output_schema={...},
+)
+```
+
+### 修改前端
+1. 编辑 `prototype_demo/static/index.html` 结构
+2. 编辑 `prototype_demo/static/styles.css` 样式
+3. 编辑 `prototype_demo/static/app.js` 逻辑
+4. 确保 DOM ID 与 JS 中的 `document.getElementById` 匹配
 
 ## 项目结构
 
 ```
-├── companion_agent/              # Companion Agent Core 模块
-│   ├── __init__.py
-│   ├── core.py                   # 主 orchestrator
-│   ├── persona.py                # 人格层
-│   ├── memory_adapter.py         # 记忆适配器 (5层模型)
+├── companion_agent/              # Agent Core 模块
+│   ├── core.py                   # 旧版 orchestrator
+│   ├── core_v2.py                # v2 状态机编排器
+│   ├── v2/                       # v2 架构组件
+│   │   ├── intent_engine.py
+│   │   ├── state_tracker.py
+│   │   ├── thread_manager.py
+│   │   ├── policy_planner.py
+│   │   ├── context_assembler.py
+│   │   ├── tool_contract.py
+│   │   ├── llm_runtime.py
+│   │   ├── persona_v2.py
+│   │   ├── relationship_memory.py
+│   │   ├── life_skills.py
+│   │   └── response_judge.py
+│   ├── memory_adapter.py         # 记忆适配器
 │   ├── memory_policy.py          # 记忆更新策略
 │   ├── situation_router.py       # 情境路由
-│   ├── skill_registry.py         # 技能注册表
-│   └── response_policy.py        # 响应策略
+│   └── skill_registry.py         # 技能注册表
 │
-├── memory/                       # 记忆引擎 (不可修改)
-│   ├── __init__.py
-│   ├── base.py
-│   ├── structured.py             # 核心结构化记忆实现
-│   ├── simple.py
-│   ├── semantic.py
-│   ├── llm_extractor.py
-│   └── update_resolver.py
+├── memory/                       # 记忆引擎（不可修改）
+│   └── structured.py             # 核心结构化记忆
 │
 ├── prototype_demo/               # 演示服务
-│   ├── server.py                 # HTTP 服务器 + Session 管理
+│   ├── server.py                 # HTTP 服务器
 │   ├── voice_bot.py              # WebRTC 语音服务
 │   ├── static/                   # 前端文件
-│   │   ├── index.html
-│   │   ├── styles.css
-│   │   └── app.js
 │   └── logs/
 │
-├── context_engine.py             # 上下文打包引擎
+├── prototype_demo/context_engine_v2/  # 上下文引擎（legacy）
 ├── mcp/                          # MCP 工具目录
 ├── tests/                        # 测试用例
 ├── env.example                   # 环境变量模板
 ├── start_prototype_demo.sh       # 启动脚本
+├── .gitignore                    # Git 忽略规则
 └── README.md                     # 本文件
-```
-
-## 更新日志
-
-### v2.0 - Companion Agent Core 重构
-
-**新增模块**
-
-- [x] `companion_agent/` - 完整的 Agent Core 架构
-- [x] System Persona Layer - 固定人格 + 安全规则
-- [x] Memory Layer Adapter - 5层记忆读取接口
-- [x] Memory Update Policy - 智能记忆更新决策
-- [x] Situation Router - 10种情境自动分类
-- [x] Skill Registry - 3级技能体系
-- [x] Response Policy - 响应编排与安全检查
-
-**前端改进**
-
-- [x] 温馨暖色调 UI (Cormorant Garamond + DM Sans)
-- [x] 角色卡可视化预览 + 图片下载
-- [x] 对话角色列表（记忆面板上方）
-- [x] 情境标签显示 (如：情绪陪伴 85%)
-- [x] 删除 NCP 独立输入（由 Agent 自动推断）
-
-**后端改进**
-
-- [x] 集成 CompanionAgentCore 到 DemoSession
-- [x] 新增 `/api/companion/status` 和 `/api/companion/situations`
-- [x] 删除 NCP 相关代码（build_ncp_payload 等）
-- [x] 新增 `/api/cards/delete` 接口
-- [x] 响应中增加 companion 元数据（情境、记忆决策、技能激活）
-
-**设计原则**
-
-- 不修改 `memory/` 模块（Adapter 模式）
-- 每轮对话自动决策记忆更新
-- 敏感记忆需要用户确认
-- 安全降级策略（危机场景）
-
-## 开发规范
-
-### 记忆模块保护
-
-**不可修改 `memory/` 目录下的任何文件。** 所有记忆操作通过 `companion_agent/memory_adapter.py` 的适配器完成。
-
-### 新增技能
-
-在 `companion_agent/skill_registry.py` 中注册：
-
-```python
-self.register(Skill(
-    name="my-skill",
-    description="技能描述",
-    tier=2,
-    situations=["casual_chat"],
-    handler=my_handler,  # 可选
-))
-```
-
-### 新增情境
-
-在 `companion_agent/situation_router.py` 的 `SITUATIONS` 中添加：
-
-```python
-"my_situation": {
-    "description": "描述",
-    "keywords": ["关键词"],
-    "retrieve_memory": True,
-    "memory_tiers": ["profile", "preferences"],
-    "skills": ["my-skill"],
-    "call_tools": False,
-    "style": "casual",
-}
 ```
 
 ## 安全与隐私
@@ -267,6 +263,22 @@ self.register(Skill(
 3. **记忆透明** - 用户可查看、修改、删除任何记忆
 4. **敏感确认** - 健康/财务/身份类信息存储前需确认
 5. **危机降级** - 检测到自伤/伤害风险时提供专业热线
+
+## 更新日志
+
+### v2.1 - 状态机与主线管理
+- 新增显式状态机（7 种状态）
+- 新增前台/后台主线管理
+- 新增策略规划器（TurnPolicy）
+- 关系记忆支持持久化和 per-session 隔离
+- 统一 LLMRuntime 接管所有 v2 LLM 调用
+
+### v2.0 - Companion Agent Core 重构
+- 5 层记忆架构
+- 情境路由（10 种情境）
+- 双脑模式（chat/task）
+- 角色卡系统
+- 本科生生活能力包
 
 ## 许可证
 
