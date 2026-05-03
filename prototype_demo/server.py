@@ -2835,7 +2835,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     host = os.getenv("PROTOTYPE_HOST", "127.0.0.1")
-    port = int(os.getenv("PROTOTYPE_PORT", "7897"))
+    port = int(os.getenv("PROTOTYPE_PORT", "8765"))
     server = ThreadingHTTPServer((host, port), PrototypeHandler)
     print(f"Prototype server running at http://{host}:{port}")
     print("Press Ctrl+C to stop.")

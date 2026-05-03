@@ -77,7 +77,7 @@ v2 架构解决了"路由器调模板"问题，核心改进：
 
 API 请求添加 `use_v2_brain: true`：
 ```bash
-curl -X POST http://127.0.0.1:7897/api/chat \
+curl -X POST http://127.0.0.1:8765/api/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "我今天好累", "use_v2_brain": true}'
 ```
@@ -248,7 +248,7 @@ cd /Users/niuniu/Downloads/quickstart
 ./start_prototype_demo.sh stop      # 停止
 
 # 服务地址
-# - 演示页: http://127.0.0.1:7897
+# - 演示页: http://127.0.0.1:8765
 # - 语音: http://127.0.0.1:7860/client
 ```
 
@@ -305,8 +305,8 @@ tail -f prototype_demo/logs/voice_bot.log
 
 ### 检查 API
 ```bash
-curl -X POST http://127.0.0.1:7897/api/companion/status
-curl -X POST http://127.0.0.1:7897/api/cards
+curl -X POST http://127.0.0.1:8765/api/companion/status
+curl -X POST http://127.0.0.1:8765/api/cards
 ```
 
 ### 清理记忆文件
