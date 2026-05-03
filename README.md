@@ -44,7 +44,7 @@ cp env.example .env
 ./start_prototype_demo.sh
 
 # 服务地址：
-# - 记忆演示页: http://127.0.0.1:8787
+# - 记忆演示页: http://127.0.0.1:7897
 # - 语音客户端: http://127.0.0.1:7860/client
 ```
 

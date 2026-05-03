@@ -39,18 +39,117 @@ git remote -v
 
 ## 技术架构
 
-### Companion Agent Core (v2.0)
+### 架构升级：v2 双脑模式
+
+v2 架构解决了"路由器调模板"问题，核心改进：
+
+1. **LLM 意图理解** (`intent_engine.py`) - 替代关键词匹配
+   - 理解用户真实意图（陪伴/玩笑/建议/执行/安静）
+   - 情绪语境分析，不是关键词命中
+   - 隐式需求识别
+
+2. **双脑路由** (`dual_brain.py`)
+   - **Chat Mode**: 纯陪伴、接话、玩梗、情绪承接
+   - **Task Mode**: 学习、饮食、工具调用
+   - 自动判断模式切换
+
+3. **角色系统升级** (`persona_v2.py`)
+   - 20+ 条真实示例对话（few-shot 风格）
+   - 说话习惯、禁忌、梗感定义
+   - 关系张力保持
+
+4. **隐式状态跟踪** (`state_tracker.py`)
+   - 连续对话模式（吐槽/倾诉/犯贱/规划）
+   - 情绪趋势追踪
+   - 关系亲密度动态变化
+
+5. **本科生生活能力包** (`life_skills.py`)
+   - 饮食分析、学习规划、社交恋爱建议
+   - 校园生活工具
+   - 真实可执行建议
+
+6. **回复后评审** (`response_judge.py`)
+   - 模板味检测
+   - 说教检测
+   - 自动重写
+
+### 使用 v2 架构
+
+API 请求添加 `use_v2_brain: true`：
+```bash
+curl -X POST http://127.0.0.1:7897/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "我今天好累", "use_v2_brain": true}'
+```
+
+### Companion Agent Core (v2.0) - 统一运行时
 
 ```
 companion_agent/
-├── core.py              # 主 orchestrator
-├── persona.py           # System Persona Layer
+├── core.py              # 主 orchestrator (legacy)
+├── persona.py           # System Persona Layer (legacy)
 ├── memory_adapter.py    # Memory Layer Adapter (5层)
 ├── memory_policy.py     # Memory Update Policy
 ├── situation_router.py  # Situation Router (10种情境)
 ├── skill_registry.py    # Skill Registry (3级技能)
-└── response_policy.py   # Response Policy
+├── response_policy.py   # Response Policy
+└── v2/                  # v2 架构升级 (本科生陪伴 Agent)
+    ├── core_v2.py          # 新 orchestrator (双脑模式)
+    ├── llm_runtime.py      # 统一 LLM 运行时
+    ├── intent_engine.py    # LLM意图理解 (替代关键词匹配)
+    ├── dual_brain.py       # 双脑路由 (chat/task mode)
+    ├── persona_v2.py       # 带风格检索的角色系统
+    ├── state_tracker.py    # 隐式状态跟踪 (多会话隔离)
+    ├── relationship_memory.py # 关系感数据层
+    ├── life_skills.py      # 本科生生活能力包
+    └── response_judge.py   # 分级重写评审
 ```
+
+**v2 架构升级（已完成）**：
+
+1. **统一 LLM Runtime** (`llm_runtime.py`)
+   - 统一 client / retry / timeout / logging / fallback
+   - 支持按任务类型配置不同模型（chat/intent/review/tool）
+   - 取代分散在各处的 `openai.AsyncOpenAI`
+
+2. **状态生命周期** (`state_tracker.py`)
+   - 多会话隔离（按 session_id）
+   - 会话重置：清空所有状态
+   - 角色切换：保留亲密度，重置模式和话题
+   - LRU 清理防止内存泄漏
+
+3. **关系感数据层** (`relationship_memory.py`)
+   - `comfort_style`: 用户喜欢被怎么接话（gentle/direct/balanced）
+   - `banter_tolerance`: 互怼容忍度（0-1）
+   - `advice_threshold`: 建议接受度（0-1）
+   - `humor_mode`: 梗感开关（off/light/active）
+   - 从对话中自动学习，不是写死
+
+4. **风格检索系统** (`persona_v2.py`)
+   - 不再硬编码塞 5 条示例
+   - 按场景检索（情绪承接/犯贱互怼/认真规划/吐槽不求解/恋爱社交）
+   - 每轮只注入最相关的 2-3 条，避免 prompt 膨胀
+
+5. **ResponseJudge 分级重写** (`response_judge.py`)
+   - 轻问题：只改语气（tone_fix），规则层处理
+   - 重问题：整句重写（rewrite），LLM 层处理
+   - 记录打回原因，形成 prompt 调优闭环
+
+6. **梗感开关** (`relationship_memory.py`)
+   - 综合用户长期偏好 + 当前情绪 + 对话模式
+   - 情绪高/认真规划时自动降梗
+
+7. **记忆写入规则** (`core_v2.py`)
+   - 编排层只决策，不直接写入
+   - 调用方（server.py）统一通过 `commit_memory()` 提交
+   - 避免双写和脏历史
+
+### 废弃代码
+
+`prototype_demo/context_engine_v2/` 中的重叠模块已标记为 **LEGACY**：
+- `companion_mode.py`, `llm_router.py`, `persona_examples.py`
+- `response_reviewer.py`, `skills.py`
+- 保留 `context_engine_v3.py` 和 `types.py` 供旧版兼容
 
 ### 记忆 5 层模型
 1. **profile**: 用户档案 (persona_slots)
@@ -149,7 +248,7 @@ cd /Users/niuniu/Downloads/quickstart
 ./start_prototype_demo.sh stop      # 停止
 
 # 服务地址
-# - 演示页: http://127.0.0.1:8787
+# - 演示页: http://127.0.0.1:7897
 # - 语音: http://127.0.0.1:7860/client
 ```
 
@@ -206,8 +305,8 @@ tail -f prototype_demo/logs/voice_bot.log
 
 ### 检查 API
 ```bash
-curl -X POST http://127.0.0.1:8787/api/companion/status
-curl -X POST http://127.0.0.1:8787/api/cards
+curl -X POST http://127.0.0.1:7897/api/companion/status
+curl -X POST http://127.0.0.1:7897/api/cards
 ```
 
 ### 清理记忆文件
