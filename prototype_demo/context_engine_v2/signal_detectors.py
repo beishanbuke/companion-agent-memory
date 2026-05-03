@@ -122,10 +122,18 @@ def detect_food_intent(text: str) -> Signal:
 def detect_music_intent(text: str) -> Signal:
     t = text.lower()
 
+    explicit_music_patterns = [
+        r"想听(?:点|些)?(?:歌|音乐|歌单|摇滚|流行|爵士|民谣|说唱|rap|rock)",
+        r"听点(?:歌|音乐|歌单|摇滚|流行|爵士|民谣|说唱|rap|rock)",
+        r"来点(?:歌|音乐|歌单|摇滚|流行|爵士|民谣|说唱|rap|rock)",
+        r"推荐(?:点|些)?(?:歌|音乐|歌单)",
+        r"推(?:点|些)?歌",
+    ]
+
     # Primary music keywords
     music_keywords = [
-        "歌", "听歌", "音乐", " playlist", "song", "music", "recommend", "推歌", "歌单",
-        "想听", "听点", "曲子", "bgm", " soundtrack", "播放", "唱",
+        "听歌", "音乐", " playlist", "song", "music", "推歌", "歌单",
+        "曲子", "bgm", " soundtrack", "播放音乐", "放歌",
     ]
 
     # Band/artist/album keywords (broader music context)
@@ -138,7 +146,8 @@ def detect_music_intent(text: str) -> Signal:
         " queen ", "beatles", "披头士", "beyond", "五月天", "周杰伦",
     ]
 
-    has_music_kw = any(kw in t for kw in music_keywords)
+    has_explicit_music_pattern = any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in explicit_music_patterns)
+    has_music_kw = has_explicit_music_pattern or any(kw in t for kw in music_keywords)
     has_band_kw = any(kw in t for kw in band_keywords)
 
     if has_music_kw or has_band_kw:
@@ -336,10 +345,61 @@ def detect_easter_eggs(text: str) -> list[Signal]:
     return eggs
 
 
+def detect_study_intent(text: str) -> Signal:
+    t = text.lower()
+
+    exam_keywords = [
+        "考试", "期中", "期末", "quiz", "midterm", "final", "test",
+        "复习", "刷题", "背书", "预习", "学不进去", "不会学"
+    ]
+
+    homework_keywords = [
+        "作业", "ddl", "deadline", "presentation", "报告", "论文",
+        "project", "汇报", "答辩"
+    ]
+
+    if any(kw in t for kw in exam_keywords):
+        return Signal(
+            id="exam_intent",
+            type="study",
+            active=True,
+            confidence=0.9,
+            intent="study_start",
+            data={
+                "subtype": "exam",
+                "preferred_action_size": "tiny",
+                "avoid_full_plan": True
+            }
+        )
+
+    if any(kw in t for kw in homework_keywords):
+        return Signal(
+            id="study_task_intent",
+            type="study",
+            active=True,
+            confidence=0.85,
+            intent="study_task_support",
+            data={
+                "subtype": "task",
+                "preferred_action_size": "small"
+            }
+        )
+
+    return Signal(
+        id="study_none",
+        type="study",
+        active=False,
+        confidence=0.0,
+        intent="",
+        data={}
+    )
+
+
 def detect_all_signals(text: str) -> dict[str, Signal | list[Signal]]:
     """Run all detectors and return signals."""
     return {
         "mood": detect_mood(text),
+        "study": detect_study_intent(text),
         "food": detect_food_intent(text),
         "music": detect_music_intent(text),
         "outfit": detect_outfit_intent(text),

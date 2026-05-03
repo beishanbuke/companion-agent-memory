@@ -1,3 +1,4 @@
+# LEGACY: skills.py is deprecated. Use companion_agent/v2/ instead.
 from __future__ import annotations
 
 from .types import ContextBlock

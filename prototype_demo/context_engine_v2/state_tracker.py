@@ -140,9 +140,15 @@ class UserStateTracker:
             return False
 
 
-# Global state tracker instance
-_state_tracker = UserStateTracker()
+# Per-user state tracker instances
+_state_trackers: dict[str, UserStateTracker] = {}
 
 
-def get_state_tracker() -> UserStateTracker:
-    return _state_tracker
+def get_state_tracker(
+    user_id: str = "demo-user",
+    conversation_id: str = "default"
+) -> UserStateTracker:
+    key = f"{user_id}:{conversation_id}"
+    if key not in _state_trackers:
+        _state_trackers[key] = UserStateTracker()
+    return _state_trackers[key]

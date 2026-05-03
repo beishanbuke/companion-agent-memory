@@ -142,7 +142,7 @@ print_summary() {
   cat <<EOF
 
 URLs:
-  Memory page: http://127.0.0.1:8787
+  Memory page: http://127.0.0.1:7897
   Voice client: http://127.0.0.1:7860/client
 
 Logs:
@@ -167,7 +167,7 @@ main() {
         "voice bot" \
         "$VOICE_PID_FILE" \
         "$VOICE_LOG_FILE" \
-        "MEMORY_API_BASE_URL=${MEMORY_API_BASE_URL:-http://127.0.0.1:${PROTOTYPE_PORT:-8787}}" \
+        "MEMORY_API_BASE_URL=${MEMORY_API_BASE_URL:-http://127.0.0.1:${PROTOTYPE_PORT:-7897}}" \
         prototype_demo/voice_bot.py \
         --host "${VOICE_BOT_HOST:-0.0.0.0}"
       print_summary
@@ -197,7 +197,7 @@ main "$@"
   #  cd /mnt/dengzhijie/mydata/memory/pipecat/examples/quickstart
   # ./start_prototype_demo.sh
 
-  # 默认就是一键启动 8787 和 7860。
+  # 默认就是一键启动 7897 和 7860。
 
   # 它还支持：
 
@@ -207,5 +207,5 @@ main "$@"
 
   # 启动后页面地址还是：
 
-  # - http://127.0.0.1:8787
+  # - http://127.0.0.1:7897
   # - http://127.0.0.1:7860/client
