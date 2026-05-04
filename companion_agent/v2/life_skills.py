@@ -123,20 +123,15 @@ class DietSkill:
         main = selected[0]
         alternatives = selected[1:]
         
-        # 构建建议
-        advice = f"""{time_key}推荐：{main['name']}
-理由：{main['reason']}
-预估：{main['price']}元
-
-搜索词：{main['search']}
-"""
+        # 构建建议（克制版：只给主选 + 一个备选，不输出预算/搜索词）
+        advice = f"{main['name']}吧，{main['reason']}。"
         
         if alternatives:
-            advice += "\n如果不想吃这个：\n"
-            for alt in alternatives:
-                advice += f"- {alt['name']}（{alt['reason']}，{alt['price']}元）\n"
+            alt = alternatives[0]
+            advice += f"想换口味就{alt['name']}。"
         
-        advice += f"\n预算参考：{self.BUDGET_LEVELS.get(budget_level, self.BUDGET_LEVELS['medium'])['range']}"
+        # 只有在明确要求详细信息时才输出预算和搜索词
+        # 默认短回复不包含这些
         
         return LifeAdvice(
             category="diet",
@@ -277,21 +272,18 @@ class StudySkill:
 1. 只看重点和错题，不看新内容
 2. 每科2小时，中间休息
 3. 晚上11点前睡
-4. 早餐吃好
 """
         elif days_left <= 3:
             advice = f"""还有{days_left}天，来得及：
 1. 先抓分最多的章节（老师划的重点）
 2. 每天每科3小时，不熬夜
 3. 做两套往年题
-4. 最后一天只看错题
 """
         elif days_left <= 7:
             advice = f"""还有{days_left}天，可以好好准备：
 1. 列提纲，每天完成2-3章
 2. 周末做模拟
-3. 平时课后复习当天的
-4. 不要堆到最后两天
+3. 不要堆到最后两天
 """
         else:
             advice = "时间充裕，先列个计划表，每周复习2-3次，考前一周密集。"
@@ -857,58 +849,60 @@ class LifeSkillsEngine:
 def study_plan_skill(skill_input: SkillInput) -> SkillOutput:
     """学习规划技能：考试/DDL/学习任务拆解。"""
     text = skill_input.user_message
-    # 简单规则：检测关键词生成可执行计划
-    cards = [
-        {
-            "title": "现在先做这一小步",
-            "items": [
-                "把最急的任务写出来",
-                "选一个 25 分钟能开始的部分",
-                "做完后再决定要不要继续",
-            ],
-        }
-    ]
-    if "考试" in text or "复习" in text:
-        cards.append({
-            "title": "考试突击策略",
-            "items": [
-                "先抓老师划的重点/往年题",
-                "只做最可能考的一章",
-                "不懂的先标记，不要死磕",
-            ],
-        })
-    if "ddl" in text.lower() or "deadline" in text.lower() or "截止" in text:
-        cards.append({
-            "title": "DDL 急救",
-            "items": [
-                "先交一个 60 分版本",
-                "有框架比没完成强",
-                "交完再优化",
-            ],
-        })
+    detail_keywords = ["详细", "方案", "展开", "具体", "plan", "详细说说"]
+    verbosity = "card" if any(k in text for k in detail_keywords) else "hint"
+
+    cards: list[dict] = []
+    if verbosity in ("card", "full"):
+        cards = [
+            {
+                "title": "现在先做这一小步",
+                "items": [
+                    "把最急的任务写出来",
+                    "选一个 25 分钟能开始的部分",
+                    "做完后再决定要不要继续",
+                ],
+            }
+        ]
+        if "考试" in text or "复习" in text:
+            cards.append({
+                "title": "考试突击策略",
+                "items": [
+                    "先抓老师划的重点/往年题",
+                    "只做最可能考的一章",
+                    "不懂的先标记，不要死磕",
+                ],
+            })
+        if "ddl" in text.lower() or "deadline" in text.lower() or "截止" in text:
+            cards.append({
+                "title": "DDL 急救",
+                "items": [
+                    "先交一个 60 分版本",
+                    "有框架比没完成强",
+                    "交完再优化",
+                ],
+            })
 
     return SkillOutput(
         name="study_plan",
         should_show=True,
-        summary_for_prompt=(
-            "用户可能处于学习/DDL压力中。回复时先降压，再给最小可执行计划。"
-            "不要一次列太多任务，优先给 1 个当前动作 + 2 个后续步骤。"
-        ),
+        summary_for_prompt="先降压，再给最小可执行计划",
         user_visible_cards=cards,
         debug={"source": "rule_based_v1"},
+        verbosity_level=verbosity,
+        reply_hint="先降压，再给最小可执行计划",
     )
 
 
 def reply_advice_skill(skill_input: SkillInput) -> SkillOutput:
     """社交回复建议技能。"""
-    return SkillOutput(
-        name="reply_advice",
-        should_show=True,
-        summary_for_prompt=(
-            "用户想处理社交回复。直接给 2-3 个可复制句子，"
-            "分别是：温和版、直接版、留余地版。"
-        ),
-        user_visible_cards=[
+    text = skill_input.user_message
+    detail_keywords = ["详细", "方案", "展开", "具体", "plan", "详细说说"]
+    verbosity = "card" if any(k in text for k in detail_keywords) else "hint"
+
+    cards: list[dict] = []
+    if verbosity in ("card", "full"):
+        cards = [
             {
                 "title": "可以这样回",
                 "items": [
@@ -917,14 +911,25 @@ def reply_advice_skill(skill_input: SkillInput) -> SkillOutput:
                     "留余地版：我先想一下，晚点再认真回你。",
                 ],
             }
-        ],
+        ]
+
+    return SkillOutput(
+        name="reply_advice",
+        should_show=True,
+        summary_for_prompt="直接给2-3个可复制句子",
+        user_visible_cards=cards,
         debug={"source": "rule_based_v1"},
+        verbosity_level=verbosity,
+        reply_hint="直接给2-3个可复制句子",
     )
 
 
 def food_recommend_skill(skill_input: SkillInput) -> SkillOutput:
     """饮食推荐技能。"""
     text = skill_input.user_message
+    detail_keywords = ["详细", "方案", "展开", "具体", "plan", "详细说说"]
+    verbosity = "card" if any(k in text for k in detail_keywords) else "hint"
+
     mood = "neutral"
     if any(k in text for k in ["累", "烦", "丧", "emo"]):
         mood = "sad"
@@ -938,26 +943,32 @@ def food_recommend_skill(skill_input: SkillInput) -> SkillOutput:
     light_foods = ["粥", "沙拉", "汤面", "饭团"]
     items = comfort_foods if mood == "sad" else light_foods + comfort_foods[:2]
 
-    return SkillOutput(
-        name="food_recommend",
-        should_show=True,
-        summary_for_prompt=(
-            "用户问吃什么。直接给 2-3 个具体选择，不要分类列举，"
-            "像朋友一样说‘我今天其实想吃炸鸡，但要克制’。"
-        ),
-        user_visible_cards=[
+    cards: list[dict] = []
+    if verbosity in ("card", "full"):
+        cards = [
             {
                 "title": f"{time_of_day}想吃点啥",
                 "items": items[:4],
             }
-        ],
+        ]
+
+    return SkillOutput(
+        name="food_recommend",
+        should_show=True,
+        summary_for_prompt="直接给一个选择+一个备选",
+        user_visible_cards=cards,
         debug={"mood": mood, "time": time_of_day},
+        verbosity_level=verbosity,
+        reply_hint="直接给一个选择+一个备选",
     )
 
 
 def playlist_recommend_skill(skill_input: SkillInput) -> SkillOutput:
     """歌单/情绪音乐推荐技能。"""
     text = skill_input.user_message
+    detail_keywords = ["详细", "方案", "展开", "具体", "plan", "详细说说"]
+    verbosity = "card" if any(k in text for k in detail_keywords) else "hint"
+
     mood = "chill"
     if any(k in text for k in ["累", "困", "晚安", "睡"]):
         mood = "sleep"
@@ -973,18 +984,21 @@ def playlist_recommend_skill(skill_input: SkillInput) -> SkillOutput:
         "chill": ["City Pop", "Indie 华语", "R&B 慢歌"],
     }
 
-    return SkillOutput(
-        name="playlist_recommend",
-        should_show=True,
-        summary_for_prompt=(
-            "用户想要音乐推荐。直接给 2-3 个歌单/风格，不要分析情绪，"
-            "像朋友分享耳机一样自然。"
-        ),
-        user_visible_cards=[
+    cards: list[dict] = []
+    if verbosity in ("card", "full"):
+        cards = [
             {
                 "title": "试试这些",
                 "items": playlists.get(mood, playlists["chill"]),
             }
-        ],
+        ]
+
+    return SkillOutput(
+        name="playlist_recommend",
+        should_show=True,
+        summary_for_prompt="给1-2个歌单/歌手建议",
+        user_visible_cards=cards,
         debug={"mood": mood},
+        verbosity_level=verbosity,
+        reply_hint="给1-2个歌单/歌手建议",
     )

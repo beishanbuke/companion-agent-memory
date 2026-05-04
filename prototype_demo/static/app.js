@@ -2123,20 +2123,27 @@ function renderContextTrace(debug) {
   const v2Intent = debug.intent || {};
   const v2Threads = debug.threads || {};
   const v2Relationship = debug.relationship || {};
+  const v2ContextMeta = debug.context_meta || {};
   
   if (v2Policy.goal || v2State.current_state) {
     html += `
       <div class="trace-section">
         <div class="trace-section-title">v2 大脑状态</div>
     `;
+    // Brain version badge
+    const brainVersion = v2ContextMeta.brain_version || (v2Policy.goal ? "v2.1" : "legacy");
+    html += `<div class="trace-stat"><strong>版本:</strong> ${escapeHtml(brainVersion)}</div>`;
     if (v2State.current_state) {
       html += `<div class="trace-stat"><strong>状态:</strong> ${escapeHtml(v2State.current_state)} ${v2State.mode ? '(' + escapeHtml(v2State.mode) + ')' : ''}</div>`;
     }
     if (v2Policy.goal) {
       html += `<div class="trace-stat"><strong>策略:</strong> ${escapeHtml(v2Policy.goal)}</div>`;
     }
-    if (v2Policy.pull_mode && v2Policy.pull_mode !== "silent") {
+    if (v2Policy.pull_mode) {
       html += `<div class="trace-stat"><strong>主线拉回:</strong> ${escapeHtml(v2Policy.pull_mode)}</div>`;
+    }
+    if (typeof v2Policy.allow_advice === "boolean") {
+      html += `<div class="trace-stat"><strong>允许建议:</strong> ${v2Policy.allow_advice ? '是' : '否'}</div>`;
     }
     if (v2Policy.skill_verbosity) {
       html += `<div class="trace-stat"><strong>技能输出:</strong> ${escapeHtml(v2Policy.skill_verbosity)}</div>`;
@@ -2152,6 +2159,12 @@ function renderContextTrace(debug) {
     }
     if (v2Relationship.profile_changed) {
       html += `<div class="trace-stat"><strong>关系学习:</strong> 已更新</div>`;
+    }
+    if (debug.memory_write_skipped !== undefined) {
+      html += `<div class="trace-stat"><strong>记忆写入:</strong> ${debug.memory_write_skipped ? '已跳过' : '已触发'}</div>`;
+    }
+    if (debug.quality_flags && debug.quality_flags.length > 0) {
+      html += `<div class="trace-stat"><strong>质量标记:</strong> ${escapeHtml(debug.quality_flags.join(', '))}</div>`;
     }
     html += `</div>`;
   }

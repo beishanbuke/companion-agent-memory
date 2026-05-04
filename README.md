@@ -215,6 +215,33 @@ MY_TOOL = ToolContract(
 3. 编辑 `prototype_demo/static/app.js` 逻辑
 4. 确保 DOM ID 与 JS 中的 `document.getElementById` 匹配
 
+## 测试
+
+### 单元测试
+
+```bash
+# 运行全部单元测试
+pytest tests/test_v2_default_chain.py tests/test_policy_rules.py \
+  tests/test_life_skill_verbosity.py tests/test_memory_restraint.py \
+  tests/test_response_judge_rules.py -v
+```
+
+### 聊天质量测试
+
+```bash
+# 启动服务后运行聊天质量用例
+python tests/chat_quality_runner.py --url http://127.0.0.1:8765
+
+# 结果保存在 tests/chat_quality_results/
+```
+
+### TDD 规范
+
+- 所有新行为必须有测试
+- 默认链路必须是 v2.1（`use_v2_brain=true`）
+- legacy 只能 fallback
+- 聊天质量通过率目标 >= 90%
+
 ## 项目结构
 
 ```

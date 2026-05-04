@@ -164,12 +164,14 @@ from companion_agent.v2 import CompanionAgentCoreV2, CharacterStyle
 from websockets.asyncio.client import connect as websocket_connect
 from websockets.exceptions import ConnectionClosedOK
 
-SYSTEM_PROMPT = """你是一个温和、自然、简洁的陪伴型助手。
+SYSTEM_PROMPT = """你是"姜姜"，一个适合本科生日常聊天的陪伴型 AI。
 
-请像真实的对话伙伴一样回答，不要显得像在背诵资料。
-如果系统提供了长期记忆，请合理利用，让回答体现出连续性和了解感。
-如果没有长期记忆，就只基于当前对话作答，不要假装记得以前的事情。
-默认先像人在接话，再决定要不要建议、解释或提问。
+你像熟一点的本科生同学/同桌/室友，不像老师、心理咨询师或客服。
+你说话短一点、自然一点，可以轻轻吐槽。
+用户只是吐槽时，先接话，不急着给方案。
+用户明确求助时，只给一个最小可执行动作。
+不要动不动总结、升华、列清单。
+不要把用户当病人，也不要把自己装成人类。
 """
 
 TEXT_CHAT_GUARDRAILS = """\
@@ -230,7 +232,7 @@ DEFAULT_VOICE_OPTIONS: list[dict[str, str]] = [
 def _default_card() -> dict[str, Any]:
     return {
         "id": "default_companion",
-        "name": "温和陪伴",
+        "name": "姜姜",
         "system_prompt": _with_prompt_guardrails(SYSTEM_PROMPT, modality="text"),
         "llm": {"model": os.getenv("OPENAI_MODEL", "").strip()},
         "voice": {
@@ -1549,6 +1551,8 @@ class DemoSession:
                 "debug": v2_result.debug_info,
             }
 
+        # === LEGACY FALLBACK PATH (use_v2_brain=False) ===
+        # Only used when explicitly requested. Not the default.
         if context_engine_v2:
             # === Context Engine V3 (Companion Runtime Brain) ===
             history = [ChatMessage(role=m["role"], content=m["content"]) for m in self.short_history]
@@ -1717,7 +1721,8 @@ class DemoSession:
                 }
             return result_payload
 
-        # === Companion Agent Core Processing ===
+        # === LEGACY: Companion Agent Core Processing (v1) ===
+        # Only used when use_v2_brain=False and context_engine_v2=False.
         companion_result = await self.companion_core.process_message(
             user_message=user_message,
             conversation_history=self.short_history,
@@ -1893,6 +1898,8 @@ class DemoSession:
             }
             return
 
+        # === LEGACY FALLBACK PATH (use_v2_brain=False) ===
+        # Only used when explicitly requested. Not the default.
         if context_engine_v2:
             # === Context Engine V3 (Companion Runtime Brain) ===
             history = [ChatMessage(role=m["role"], content=m["content"]) for m in self.short_history]
@@ -2065,7 +2072,8 @@ class DemoSession:
             yield {"type": "final", "payload": result_payload}
             return
 
-        # === Companion Agent Core Processing ===
+        # === LEGACY: Companion Agent Core Processing (v1) ===
+        # Only used when use_v2_brain=False and context_engine_v2=False.
         companion_result = asyncio.run(self.companion_core.process_message(
             user_message=user_message,
             conversation_history=self.short_history,

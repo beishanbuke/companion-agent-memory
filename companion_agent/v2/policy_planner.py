@@ -56,6 +56,25 @@ class TurnPolicy:
     # 技能输出控制
     skill_verbosity: str = "hint"  # hint/short/card/full
 
+    # 硬约束列表
+    hard_constraints: list[str] = field(default_factory=list)
+
+
+def enforce_max_questions(reply_text: str, max_q: int) -> dict[str, Any]:
+    """Count '?' in reply and log warning if exceeded.
+    
+    Does not truncate the reply; only flags violations.
+    """
+    count = reply_text.count("?")
+    if max_q >= 0 and count > max_q:
+        import logging
+        logging.getLogger(__name__).warning(
+            "max_questions exceeded: found %d '?' but max allowed is %d",
+            count, max_q,
+        )
+        return {"enforced": False, "count": count, "max": max_q, "violation": True}
+    return {"enforced": True, "count": count, "max": max_q, "violation": False}
+
 
 class PolicyPlanner:
     """策略规划器（升级自 DualBrainRouter）。"""
@@ -94,23 +113,25 @@ class PolicyPlanner:
         policy.main_thread_id = target_id
         
         # 只有当用户明确提到相关线索或要求复盘时才 soft/active
-        user_asks_review = any(w in msg for w in ["复习", "复盘", "回顾", "提醒", "那个事", "之前"])
+        user_asks_review = any(w in msg for w in ["复习", "复盘", "回顾", "提醒", "那个事", "之前", "继续", "接着说", "说说"])
         user_mentions_related = target_id and any(
             kw in msg for kw in ["考试", "ddl", "论文", "工作", "压力", "复习", "准备"]
         )
         
-        if pull_mode == "soft" and (user_asks_review or user_mentions_related):
-            policy.pull_mode = "soft"
-            policy.goal = "resume_main_thread"
-            policy.reason = f"用户提及相关线索，轻提醒后台主线: {target_id}"
-            policy.max_questions = 0
-            policy.allow_humor = False
-            policy.response_length = "short"
-            policy.context_profile = "standard"
-            # soft 模式下不正式切换前台主线，只在回复中轻提一句
-            policy.pull_main_thread = False
-            return policy
-        elif user_asks_review and target_id:
+        # If user asks review but target_id is empty, try to match from background threads
+        if user_asks_review and not target_id:
+            sid = getattr(state, "session_id", "")
+            session = getattr(thread_manager, "_sessions", {}).get(sid or thread_manager._default_session)
+            if session:
+                for thread in session.background_threads:
+                    if thread.thread_type == "light_chat":
+                        continue
+                    thread_keywords = thread.name + " " + thread.thread_type + " " + thread.resume_tokens
+                    if any(kw in thread_keywords and kw in msg for kw in ["论文", "考试", "ddl", "工作", "复习"]):
+                        target_id = thread.id
+                        break
+        
+        if user_asks_review and target_id:
             # 用户明确要求复盘，可以 active
             policy.pull_mode = "active"
             policy.pull_main_thread = True
@@ -120,7 +141,18 @@ class PolicyPlanner:
             policy.allow_humor = False
             policy.response_length = "medium"
             policy.context_profile = "thread_resume"
-            return policy
+            return self._finalize_policy(policy)
+        elif pull_mode == "soft" and (user_asks_review or user_mentions_related):
+            policy.pull_mode = "soft"
+            policy.goal = "resume_main_thread"
+            policy.reason = f"用户提及相关线索，轻提醒后台主线: {target_id}"
+            policy.max_questions = 0
+            policy.allow_humor = False
+            policy.response_length = "short"
+            policy.context_profile = "standard"
+            # soft 模式下不正式切换前台主线，只在回复中轻提一句
+            policy.pull_main_thread = False
+            return self._finalize_policy(policy)
         
         # === 2. 根据意图和状态决定策略 ===
         
@@ -136,7 +168,20 @@ class PolicyPlanner:
             policy.context_profile = "minimal"
             policy.skill_verbosity = "hint"
             policy.reason = "用户情绪高强度，优先稳定"
-            return policy
+            return self._finalize_policy(policy)
+        
+        # 用户想安静 -> quiet (必须优先于其他中等情绪判断)
+        if intent.primary_intent == "quiet" or "不想说" in msg or "别问了" in msg:
+            policy.goal = "stay_light"
+            policy.target_state = "quiet"
+            policy.allow_advice = False
+            policy.max_questions = 0
+            policy.max_actions = 0
+            policy.response_length = "short"
+            policy.context_profile = "minimal"
+            policy.skill_verbosity = "none"
+            policy.reason = "用户想安静，留空间"
+            return self._finalize_policy(policy)
         
         # 中等情绪 + 可推动 -> push_one_step
         if intent.emotional_intensity > 0.4 and intent.emotional_intensity <= 0.7:
@@ -144,26 +189,26 @@ class PolicyPlanner:
                 policy.goal = "push_one_step"
                 policy.target_state = "pushable_low_energy"
                 policy.allow_advice = True
-                policy.max_questions = 0
+                policy.max_questions = 1
                 policy.max_actions = 1
                 policy.response_length = "medium"
                 policy.context_profile = "standard"
                 policy.skill_verbosity = "short"
-                policy.reason = "用户情绪中等，有一定承接力，可轻推一步"
-                return policy
-        
+            policy.skill_verbosity = "short"
+            policy.reason = "用户情绪中等，有一定承接力，可轻推一步"
+            return self._finalize_policy(policy)
         # 明确任务 + 紧急 -> task_execution
         if intent.primary_intent == "execute" and intent.task_urgency > 0.6:
             policy.goal = "push_one_step"
             policy.target_state = "task_execution"
             policy.allow_advice = True
-            policy.max_questions = 0
+            policy.max_questions = 1
             policy.tool_calls = [intent.task_category] if intent.task_category != "none" else []
             policy.response_length = "medium"
             policy.context_profile = "task_heavy"
             policy.skill_verbosity = "card" if intent.action_receptivity > 0.7 else "short"
             policy.reason = f"用户明确执行任务，紧急度{intent.task_urgency:.1f}"
-            return policy
+            return self._finalize_policy(policy)
         
         # 主动复盘 -> review_day
         msg = user_message or ""
@@ -182,7 +227,7 @@ class PolicyPlanner:
             policy.context_profile = "review"
             policy.skill_verbosity = "short"
             policy.reason = f"用户主动{review_scope}复盘"
-            return policy
+            return self._finalize_policy(policy)
         
         # 话题切换识别
         if intent.topic_shift_type in ("new_thread", "functional_detour"):
@@ -194,21 +239,21 @@ class PolicyPlanner:
                 policy.response_length = "short"
                 policy.context_profile = "minimal"
                 policy.skill_verbosity = "hint"
-                policy.reason = "检测到高压话题切换，需要确认紧急度"
-                return policy
-        
+            policy.skill_verbosity = "hint"
+            policy.reason = "检测到高压话题切换，需要确认紧急度"
+            return self._finalize_policy(policy)
         # 闲聊/犯贱 -> stay_light
         if intent.conversation_rhythm in ("bantering", "chill", "sharing"):
             policy.goal = "stay_light"
             policy.target_state = "light_chat"
             policy.allow_humor = self._rel_get(relationship_profile, "humor_mode", "light") != "off"
             policy.allow_advice = False
-            policy.max_questions = 0
+            policy.max_questions = 1
             policy.response_length = "short"
             policy.context_profile = "standard"
             policy.skill_verbosity = "hint"
             policy.reason = "轻松闲聊模式"
-            return policy
+            return self._finalize_policy(policy)
         
         # 倾诉 -> support_soft
         if intent.conversation_rhythm == "confiding":
@@ -221,26 +266,41 @@ class PolicyPlanner:
             policy.context_profile = "standard"
             policy.skill_verbosity = "hint"
             policy.reason = "用户在倾诉"
-            return policy
+            return self._finalize_policy(policy)
         
         # 规划 -> planning
         if intent.conversation_rhythm == "planning" or intent.primary_intent == "advice":
             policy.goal = "push_one_step"
             policy.target_state = "planning"
             policy.allow_advice = True
-            policy.max_questions = 0
+            policy.max_questions = 2
             policy.max_actions = 1
             policy.response_length = "medium"
             policy.context_profile = "task_heavy"
             policy.skill_verbosity = "card" if intent.action_receptivity > 0.6 else "short"
             policy.reason = "用户在做规划"
-            return policy
+            return self._finalize_policy(policy)
         
         # 默认
         policy.goal = "stay_light"
         policy.target_state = "light_chat"
         policy.context_profile = "standard"
         policy.reason = "默认策略"
+        return self._finalize_policy(policy)
+    
+    def _finalize_policy(self, policy: TurnPolicy) -> TurnPolicy:
+        """Apply hard constraints and enforce pull_mode consistency before returning."""
+        # Enforce silent pull_mode: no thread reference in reply hint
+        if policy.pull_mode == "silent":
+            policy.pull_main_thread = False
+            policy.hard_constraints.append("no_thread_pull_unless_soft_or_active")
+        
+        if policy.goal == "stabilize":
+            policy.hard_constraints.append("no_numbered_lists_when_stabilize")
+        
+        if policy.goal == "stay_light":
+            policy.hard_constraints.append("no_hotline_when_stay_light")
+        
         return policy
     
     def get_mode_from_policy(self, policy: TurnPolicy) -> str:

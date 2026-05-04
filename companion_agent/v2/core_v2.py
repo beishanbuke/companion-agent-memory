@@ -259,11 +259,15 @@ class CompanionAgentCoreV2:
             relationship_profile=relationship_profile,
             user_message=user_message,
         )
-        
+
+        # 用户明确要求细节时提升技能输出详细度
+        detail_keywords = ["详细", "方案", "展开", "具体", "plan", "详细说说"]
+        if any(kw in user_message for kw in detail_keywords):
+            policy.skill_verbosity = "card"
+
         # 如果需要拉回主线
         if policy.pull_main_thread and policy.main_thread_id:
             self.thread_manager.switch_to_thread(policy.main_thread_id, sid)
-        
         # === Step 5: 记忆检索 ===
         t = time.perf_counter()
         memory_context = TieredMemoryContext()
@@ -411,6 +415,12 @@ class CompanionAgentCoreV2:
         # 持久化关系记忆
         self._save_relationship_memory()
         
+        # Background threads with composite score > 0.5
+        scored_threads = self.thread_manager.score_threads(sid)
+        bg_high_priority = [
+            t.id for t, score in scored_threads if t.status == "background" and score > 0.5
+        ]
+        
         # 更新状态中的 assistant_reply
         self.state_tracker.update(
             intent_analysis=intent,
@@ -432,14 +442,28 @@ class CompanionAgentCoreV2:
             privacy_level="public",
             suggested_tags=[],
         )
+        memory_write_skipped = not memory_enabled
 
         if memory_enabled:
             snapshot = self._get_memory_snapshot()
-            memory_decision = await self.memory_policy.evaluate(
-                user_message=user_message,
-                current_memory_snapshot=snapshot,
-                situation=intent.task_category,
-            )
+            # Fast path: check should_never_store before evaluating
+            if self.memory_policy._should_never_store(user_message):
+                memory_decision = MemoryDecision(
+                    action="ignore",
+                    reason="短句/寒暄/低信息密度内容，不写入长期记忆",
+                    confidence=0.95,
+                    requires_confirmation=False,
+                    privacy_level="public",
+                    suggested_tags=[],
+                )
+                memory_write_skipped = True
+            else:
+                memory_decision = await self.memory_policy.evaluate(
+                    user_message=user_message,
+                    current_memory_snapshot=snapshot,
+                    situation=intent.task_category,
+                )
+                memory_write_skipped = memory_decision.action == "ignore"
             if memory_decision.action in ("add", "update") and not memory_decision.requires_confirmation:
                 self._pending_memory_store = user_message
         stage_timings["memory_policy"] = time.perf_counter() - t
@@ -515,6 +539,22 @@ class CompanionAgentCoreV2:
                     "after": new_profile_summary,
                     "session_id": sid,
                 },
+                "context_meta": {
+                    "brain_version": "v2.1",
+                    "v2_brain": True,
+                    "legacy_fallback_used": False,
+                    "state": conv_state.current_state,
+                    "policy.goal": policy.goal,
+                    "pull_mode": policy.pull_mode,
+                    "skill_verbosity": policy.skill_verbosity,
+                    "tool_hint_used": tool_hint_used,
+                    "intent.primary": intent.primary_intent,
+                    "intent.confidence": round(intent.intent_confidence, 2),
+                    "background_threads": bg_high_priority,
+                    "relationship.profile_changed": profile_changed,
+                },
+                "judge_ran": judge_result is not None,
+                "memory_write_skipped": memory_write_skipped,
                 "tool_hint_used": tool_hint_used,
                 "stage_timings": {k: round(v, 3) for k, v in stage_timings.items()},
             },
@@ -681,6 +721,11 @@ class CompanionAgentCoreV2:
             user_message=user_message,
         )
 
+        # 用户明确要求细节时提升技能输出详细度
+        detail_keywords = ["详细", "方案", "展开", "具体", "plan", "详细说说"]
+        if any(kw in user_message for kw in detail_keywords):
+            policy.skill_verbosity = "card"
+
         if policy.pull_main_thread and policy.main_thread_id:
             self.thread_manager.switch_to_thread(policy.main_thread_id, sid)
 
@@ -697,6 +742,7 @@ class CompanionAgentCoreV2:
 
         tool_results: list[ToolResult] = []
         task_context = ""
+        tool_hint_used = ""
 
         if policy.tool_calls:
             for tool_name in policy.tool_calls:
@@ -722,7 +768,15 @@ class CompanionAgentCoreV2:
                 },
             )
             if life_advice:
-                task_context += f"\n【生活建议】{life_advice.advice}"
+                if policy.skill_verbosity == "hint":
+                    tool_hint_used = life_advice.advice[:80] if len(life_advice.advice) > 80 else life_advice.advice
+                    task_context += f"\n【技能提示】{tool_hint_used}（不要直接复述，作为回复参考）"
+                elif policy.skill_verbosity == "short":
+                    tool_hint_used = life_advice.advice[:150] if len(life_advice.advice) > 150 else life_advice.advice
+                    task_context += f"\n【技能提示】{tool_hint_used}"
+                else:
+                    task_context += f"\n【生活建议】{life_advice.advice}"
+                    tool_hint_used = life_advice.advice[:100]
                 active_thread = self.thread_manager.get_active_thread_summary(sid)
                 if active_thread:
                     self.thread_manager.update_thread(
@@ -818,6 +872,12 @@ class CompanionAgentCoreV2:
         profile_changed = old_profile_summary != new_profile_summary
         self._save_relationship_memory()
 
+        # Background threads with composite score > 0.5
+        scored_threads = self.thread_manager.score_threads(sid)
+        bg_high_priority = [
+            t.id for t, score in scored_threads if t.status == "background" and score > 0.5
+        ]
+
         self.state_tracker.update(
             intent_analysis=intent,
             user_message=user_message,
@@ -836,14 +896,28 @@ class CompanionAgentCoreV2:
             privacy_level="public",
             suggested_tags=[],
         )
+        memory_write_skipped = not memory_enabled
 
         if memory_enabled:
             snapshot = self._get_memory_snapshot()
-            memory_decision = await self.memory_policy.evaluate(
-                user_message=user_message,
-                current_memory_snapshot=snapshot,
-                situation=intent.task_category,
-            )
+            # Fast path: check should_never_store before evaluating
+            if self.memory_policy._should_never_store(user_message):
+                memory_decision = MemoryDecision(
+                    action="ignore",
+                    reason="短句/寒暄/低信息密度内容，不写入长期记忆",
+                    confidence=0.95,
+                    requires_confirmation=False,
+                    privacy_level="public",
+                    suggested_tags=[],
+                )
+                memory_write_skipped = True
+            else:
+                memory_decision = await self.memory_policy.evaluate(
+                    user_message=user_message,
+                    current_memory_snapshot=snapshot,
+                    situation=intent.task_category,
+                )
+                memory_write_skipped = memory_decision.action == "ignore"
             if memory_decision.action in ("add", "update") and not memory_decision.requires_confirmation:
                 self._pending_memory_store = user_message
         stage_timings["memory_policy"] = time.perf_counter() - t
@@ -916,6 +990,22 @@ class CompanionAgentCoreV2:
                     "after": new_profile_summary,
                     "session_id": sid,
                 },
+                "context_meta": {
+                    "brain_version": "v2.1",
+                    "v2_brain": True,
+                    "legacy_fallback_used": False,
+                    "state": conv_state.current_state,
+                    "policy.goal": policy.goal,
+                    "pull_mode": policy.pull_mode,
+                    "skill_verbosity": policy.skill_verbosity,
+                    "tool_hint_used": tool_hint_used,
+                    "intent.primary": intent.primary_intent,
+                    "intent.confidence": round(intent.intent_confidence, 2),
+                    "background_threads": bg_high_priority,
+                    "relationship.profile_changed": profile_changed,
+                },
+                "judge_ran": judge_result is not None,
+                "memory_write_skipped": memory_write_skipped,
                 "tool_hint_used": tool_hint_used,
                 "stage_timings": {k: round(v, 3) for k, v in stage_timings.items()},
             },
