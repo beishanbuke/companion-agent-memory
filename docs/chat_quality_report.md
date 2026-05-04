@@ -184,13 +184,16 @@ LLM-as-judge 正向质量指标：
 - 53 条 isolated cases 已参与调参，post-filter 的 weak_markers 可能过度特化
 - 需要 blind set 验证真实泛化
 
-### 5.2 scenario 数量不足
-- 当前仅 5 个 scenario，覆盖不够全面
-- 长期陪伴的核心难点（话题转移、前后矛盾、偏好遗忘）尚未充分测试
+### 5.2 scenario 数量
+- ~~当前仅 5 个 scenario~~ → 已新增 20 个 blind scenario
+- 覆盖：先不想说后主动展开、先拒绝建议后求助、三次短回复偏好稳定化、饮食偏好继承、论文主线主动拉回、安全升级、你是不是在分析我等
+- 但 blind scenario 尚未实测，待验证
 
-### 5.3 正向质量指标缺失
-- runner 擅长抓错误（hard rules），但不擅长判断"是否好聊"
-- 缺乏 naturalness / warmth / undergrad_vibe 的量化评估
+### 5.3 正向质量指标
+- ~~缺失~~ → 已落地 `chat_human_likeness_eval.py`
+- 5 维度：naturalness / warmth / undergrad_vibe / non_template / usefulness
+- LLM-as-judge，输出平均分 + 低分 case
+- 但尚未与 runner 集成，也未在 blind set 上实测
 
 ### 5.4 禁用词工程可能过度
 - 当前 weak_markers 包含：空虚、数羊、一只羊、耳塞、课表、别慌、没有、分析、在吗
@@ -203,30 +206,38 @@ LLM-as-judge 正向质量指标：
 
 ---
 
-## 6. 下一步计划
+## 6. Phase 7 交付清单
 
-### Phase 7：防过拟合与真实聊天自然度评估
+### 已交付
 
-1. **运行 Blind 测试**
-   - `python tests/chat_quality_runner.py --mode blind-isolated`
-   - `python tests/chat_quality_runner.py --mode blind-scenario`
-   - 目标：blind isolated ≥ 85%，blind scenario ≥ 75%
+| 交付物 | 文件 | 状态 |
+|--------|------|------|
+| Blind isolated 用例 | `tests/chat_quality_cases_blind.jsonl` (104 条) | ✅ 已校验 0 bad JSON |
+| Blind scenario 用例 | `tests/chat_quality_scenarios_blind.jsonl` (20 条) | ✅ 已校验 0 bad JSON |
+| Runner blind 模式 | `tests/chat_quality_runner.py` | ✅ 支持 `--mode blind-isolated/blind-scenario/blind-all` |
+| Runner validate-only | `tests/chat_quality_runner.py` | ✅ 支持 `--validate-only` 不调用服务 |
+| Over-filtered 检测 | `tests/chat_quality_runner.py` | ✅ `over_filtered_reply` flag |
+| Human-likeness eval | `tests/chat_human_likeness_eval.py` | ✅ 5 维度 LLM-as-judge |
+| README 更新 | `README.md` | ✅ 关系记忆三层 + pull_mode 三档 |
 
-2. **Human-likeness 评估**
-   - `python tests/chat_human_likeness_eval.py --results tests/chat_quality_results/...`
-   - 关注平均分和低分 case
+### 待实测
 
-3. **扩展 scenario**
-   - 从 5 个扩到 20 个
-   - 重点覆盖：先不想听后求助、玩笑转认真、偏好遗忘、安全升级
+- `blind-isolated` 真实通过率（目标 ≥ 85%）
+- `blind-scenario` 真实通过率（目标 ≥ 75%）
+- `over_filtered_reply` 出现次数
+- `human-likeness` 平均分
 
-4. **减少禁用词工程**
-   - 不再新增 weak_markers，除非 blind set 明确失败
-   - 引入 `over_filtered_reply` 检测，防止 post-filter 过强
+### 运行命令
 
-5. **真实用户测试**
-   - 招募 5-10 名本科生进行 30 分钟长 session 测试
-   - 收集主观评分 + 聊天记录 + 事后 interview
+```bash
+# 校验（不调用服务）
+uv run python tests/chat_quality_runner.py --mode blind-isolated --validate-only
+uv run python tests/chat_quality_runner.py --mode blind-scenario --validate-only
+
+# 实测
+uv run python tests/chat_quality_runner.py --mode blind-isolated
+uv run python tests/chat_quality_runner.py --mode blind-scenario
+```
 
 ---
 

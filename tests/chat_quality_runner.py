@@ -650,7 +650,49 @@ async def main_async() -> int:
     parser.add_argument("--url", default=None)
     parser.add_argument("--threshold", type=float, default=0.90, help="Minimum pass rate")
     parser.add_argument("--mode", choices=["isolated", "scenario", "all", "blind-isolated", "blind-scenario", "blind-all"], default="all")
+    parser.add_argument("--validate-only", action="store_true", help="Only validate JSONL files without calling the service")
     args = parser.parse_args()
+
+    # Validate-only mode
+    if args.validate_only:
+        files_to_check = []
+        if args.mode in ("isolated", "all", "blind-isolated", "blind-all"):
+            files_to_check.append(("isolated", args.blind_cases if args.mode.startswith("blind") else (args.cases or PROJECT_DIR / "tests" / "chat_quality_cases_isolated.jsonl")))
+        if args.mode in ("scenario", "all", "blind-scenario", "blind-all"):
+            files_to_check.append(("scenario", args.blind_scenarios if args.mode.startswith("blind") else args.scenarios))
+
+        all_ok = True
+        for label, path in files_to_check:
+            if isinstance(path, Path) and not path.exists():
+                # fallback for isolated
+                if label == "isolated" and not args.mode.startswith("blind"):
+                    fallback = PROJECT_DIR / "tests" / "chat_quality_cases.jsonl"
+                    if fallback.exists():
+                        path = fallback
+            if not path.exists():
+                print(f"❌ {label}: file not found: {path}")
+                all_ok = False
+                continue
+            lines = path.read_text(encoding="utf-8").splitlines()
+            bad = []
+            for i, line in enumerate(lines, 1):
+                if not line.strip():
+                    continue
+                try:
+                    obj = json.loads(line)
+                except Exception as e:
+                    bad.append((i, str(e)))
+                    continue
+                # Validate hard_rules_dict if present
+                hrd = obj.get("hard_rules_dict")
+                if hrd and not isinstance(hrd, dict):
+                    bad.append((i, f"hard_rules_dict is {type(hrd).__name__}, expected dict"))
+            print(f"{'✅' if not bad else '❌'} {label}: {path.name} — {len(lines)} lines, {len(bad)} bad")
+            for i, err in bad[:10]:
+                print(f"   line {i}: {err}")
+            if bad:
+                all_ok = False
+        return 0 if all_ok else 1
 
     # Auto-adjust threshold for blind test modes
     if args.mode == "blind-isolated":
@@ -668,11 +710,14 @@ async def main_async() -> int:
     all_summaries = []
 
     # Isolated mode
-    if args.mode in ("isolated", "all"):
-        isolated_path = args.cases or PROJECT_DIR / "tests" / "chat_quality_cases_isolated.jsonl"
-        fallback_path = PROJECT_DIR / "tests" / "chat_quality_cases.jsonl"
-        if not isolated_path.exists() and fallback_path.exists():
-            isolated_path = fallback_path
+    if args.mode in ("isolated", "all", "blind-isolated", "blind-all"):
+        if args.mode.startswith("blind"):
+            isolated_path = args.blind_cases
+        else:
+            isolated_path = args.cases or PROJECT_DIR / "tests" / "chat_quality_cases_isolated.jsonl"
+            fallback_path = PROJECT_DIR / "tests" / "chat_quality_cases.jsonl"
+            if not isolated_path.exists() and fallback_path.exists():
+                isolated_path = fallback_path
 
         if isolated_path.exists():
             cases = load_cases(isolated_path)
@@ -687,8 +732,11 @@ async def main_async() -> int:
             print(f"No isolated cases found at {isolated_path}")
 
     # Scenario mode
-    if args.mode in ("scenario", "all"):
-        scenario_path = args.scenarios
+    if args.mode in ("scenario", "all", "blind-scenario", "blind-all"):
+        if args.mode.startswith("blind"):
+            scenario_path = args.blind_scenarios
+        else:
+            scenario_path = args.scenarios
         if scenario_path.exists():
             scenarios = load_cases(scenario_path)
             print(f"\nLoaded {len(scenarios)} scenarios from {scenario_path}")
@@ -701,8 +749,8 @@ async def main_async() -> int:
         else:
             print(f"No scenarios found at {scenario_path}")
 
-    # Combined summary for all mode
-    if args.mode == "all" and len(all_summaries) == 2:
+    # Combined summary for all / blind-all mode
+    if args.mode in ("all", "blind-all") and len(all_summaries) == 2:
         total_pass = sum(s["pass_count"] for s in all_summaries)
         total_success = sum(s["success_count"] for s in all_summaries)
         combined_summary = {
