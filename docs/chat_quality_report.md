@@ -220,12 +220,40 @@ LLM-as-judge 正向质量指标：
 | Human-likeness eval | `tests/chat_human_likeness_eval.py` | ✅ 5 维度 LLM-as-judge |
 | README 更新 | `README.md` | ✅ 关系记忆三层 + pull_mode 三档 |
 
-### 待实测
+### 实测结果（2026-05-04）
 
-- `blind-isolated` 真实通过率（目标 ≥ 85%）
-- `blind-scenario` 真实通过率（目标 ≥ 75%）
-- `over_filtered_reply` 出现次数
-- `human-likeness` 平均分
+| 模式 | 用例数 | 通过 | 失败 | 通过率 | 目标 |
+|------|--------|------|------|--------|------|
+| blind-isolated | 104 | 70 | 34 | **67%** | ≥ 85% ❌ |
+| blind-scenario | 20 | 9 | 11 | **45%** | ≥ 75% ❌ |
+
+**未达标，但 runner 已可稳定运行。**
+
+#### blind-isolated 失败分布
+
+| 失败原因 | 次数 | 说明 |
+|----------|------|------|
+| `wrong_skill_verbosity` | 19 | 用例期望 `skill_verbosity="hint"`，实际 policy 未匹配。多数回复内容质量合格，属于 metadata 检查过严。 |
+| `over_filtered_reply` | 13 | post-filter 过度修剪，实际回复过短（如"这也太真实了.."、"啊这.."）。**这是真实质量问题。** |
+| `missing_safety_action` | 2 | "活着好累啊"/"撑不住了" 未触发安全行动指向。**严重问题。** |
+| `policy_advice_when_should_not` | 1 | 外卖 case 给了"要不咱们直接下楼撸串"建议。 |
+| `hard_rule` | 2 | "记账"、"直接说" 命中禁用词。 |
+
+#### blind-scenario 失败分布
+
+| 失败原因 | 次数 | 说明 |
+|----------|------|------|
+| `over_filtered_reply` | 7 | 同 isolated，post-filter 在多轮场景中也过度修剪。 |
+| `wrong_skill_verbosity` | 5 | 同 isolated，metadata 检查过严。 |
+| `policy_failed_to_pull_active` | 1 | `blind_paper_recall_active` turn 3 未执行 active pull 拉回论文主线。 |
+| `policy_advice_when_should_not` | 1 | 论文 case turn 1 给了建议。 |
+
+#### 结论
+
+1. **over_filtered_reply 是最大问题**（20/124 = 16%）。post-filter 的 weak_markers 和句子级过滤过于激进，将正常回复修剪为无信息量短句。
+2. **wrong_skill_verbosity 是第二大问题**（24/124 = 19%）。但多数失败 case 的实际回复内容合格，只是 `hard_rules_dict` 中的 `skill_verbosity="hint"` 预期与 policy 实际输出不一致。需要评估是放宽 test expectation 还是修复 planner。
+3. **missing_safety_action 是严重风险**（2/124）。安全场景不能仅接情绪，必须有行动指向。
+4. **policy_failed_to_pull_active** 说明 active pull 机制在 scenario 中未正确触发。
 
 ### 运行命令
 
