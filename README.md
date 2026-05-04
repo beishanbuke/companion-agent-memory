@@ -59,6 +59,10 @@ cp env.example .env
 # - 语音客户端: http://127.0.0.1:7860/client
 ```
 
+### Android 原生客户端
+
+仓库包含一个 Kotlin + Jetpack Compose 安卓调试版客户端，路径为 [`android/`](android/README.md)。它面向同 Wi-Fi 调试：电脑启动本地后端后，在 App 设置页把后端地址改成 `http://电脑局域网IP:8765`。
+
 ## 架构文档
 
 ### v2 架构总览
