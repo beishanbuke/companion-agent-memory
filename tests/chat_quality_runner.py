@@ -189,6 +189,20 @@ def check_text_rules(reply: str, case: dict[str, Any]) -> list[str]:
     if case.get("category") in ("food", "social") and len(reply) > 80:
         if "1." in reply or "2." in reply or "首先" in reply:
             flags.append("over_explained_skill")
+    
+    # over_filtered_reply: 回复短到没有信息量（非寒暄/quiet场景）
+    category = case.get("category", "")
+    is_short_ok = category in ("greeting", "quiet") or case.get("tags", []) == ["fast_path", "casual"]
+    if not is_short_ok and len(reply) < 12:
+        # 排除自然的短回应
+        natural_short = {"懂了", "确实", "嗯", "哦", "行", "好", "是的", "没错", "抱抱", "懂"}
+        if reply.strip() not in natural_short and not any(reply.strip().startswith(s) for s in ["懂", "确实", "嗯", "哦", "行", "好"]):
+            flags.append("over_filtered_reply")
+    
+    # too_empty: 回复只包含空泛填充词
+    empty_patterns = ["嗯。", "行。", "确实。", "先别急。", "我在。", "懂了。", "好的。", "好吧。", "嗯嗯。"]
+    if reply.strip() in empty_patterns:
+        flags.append("too_empty")
 
     return flags
 
@@ -630,11 +644,21 @@ async def main_async() -> int:
     parser = argparse.ArgumentParser(description="Chat Quality Runner - Phase 6")
     parser.add_argument("--cases", type=Path, default=None)
     parser.add_argument("--scenarios", type=Path, default=PROJECT_DIR / "tests" / "chat_quality_scenarios.jsonl")
+    parser.add_argument("--blind-cases", type=Path, default=PROJECT_DIR / "tests" / "chat_quality_cases_blind.jsonl")
+    parser.add_argument("--blind-scenarios", type=Path, default=PROJECT_DIR / "tests" / "chat_quality_scenarios_blind.jsonl")
     parser.add_argument("--out", type=Path, default=PROJECT_DIR / "tests" / "chat_quality_results")
     parser.add_argument("--url", default=None)
     parser.add_argument("--threshold", type=float, default=0.90, help="Minimum pass rate")
-    parser.add_argument("--mode", choices=["isolated", "scenario", "all"], default="all")
+    parser.add_argument("--mode", choices=["isolated", "scenario", "all", "blind-isolated", "blind-scenario", "blind-all"], default="all")
     args = parser.parse_args()
+
+    # Auto-adjust threshold for blind test modes
+    if args.mode == "blind-isolated":
+        args.threshold = 0.85
+    elif args.mode == "blind-scenario":
+        args.threshold = 0.75
+    elif args.mode == "blind-all":
+        args.threshold = 0.80
 
     global BASE_URL
     if args.url:

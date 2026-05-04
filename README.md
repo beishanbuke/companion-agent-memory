@@ -9,7 +9,7 @@
 - **显式状态机**：7 种状态（light_chat / support_crisis / pushable_low / task_exec / task_done / quiet / clarify）
 - **主线管理**：前台/后台/休眠主线，自动话题切换和主线恢复
 - **策略规划器**：每轮显式策略（goal / pull_main_thread / allow_humor / allow_advice / tool_calls）
-- **关系记忆**：每轮学习用户偏好（接话风格/互怼容忍度/建议阈值/梗感），持久化到 JSON
+- **关系记忆**：三层偏好模型——session preference（本轮临时）、stable preference（重复 3 次以上才持久化）、explicit preference（用户明确说"记住"才立即持久化）。短句/寒暄不写长期记忆，敏感内容 pending confirmation
 
 ### 记忆系统（5 层）
 - **profile**: 用户档案 - 稳定事实
@@ -124,10 +124,10 @@ companion_agent/
 - **后台主线**：最多保留 3 个，分数衰减
 - **休眠主线**：超出容量后降级
 - **拉回规则**：主线拉回由 `pull_mode` 控制
-  - `silent`：默认，不打断当前轻松聊天
-  - `soft`：用户提到相关线索时轻提醒
+  - `silent`：默认，不打断当前轻松聊天，不主动拉回
+  - `soft`：用户提到相关线索时轻提醒，不强制切换
   - `active`：用户明确要求继续/复盘/提醒/规划时才正式拉回
-  - 系统禁止在普通 light_chat 中自动打断用户情绪或突兀拉回压力源
+  - **禁止** light_chat 状态下自动打断用户情绪或突兀拉回高压主线
 
 ### 关系记忆（RelationshipMemory）
 
@@ -201,9 +201,11 @@ POST /api/companion/status
 ## 测试体系
 
 - **单元测试**（`tests/test_*.py`）：验证模块行为，如 PolicyPlanner、IntentEngine、ResponseJudge
-- **端到端聊天质量**（`tests/chat_quality_runner.py`）：验证真实 LLM 下的回复质量
-  - `isolated` 模式：每条 case 独立 session，验证单轮行为
-  - `scenario` 模式：多轮共享 session，验证主线、记忆、偏好学习
+- **端到端聊天质量**（`tests/chat_quality_runner.py`）：metadata-aware 质量验证
+  - `isolated` 模式：每条 case 独立 session，验证单轮行为（53 条，目标 ≥ 92%）
+  - `scenario` 模式：多轮共享 session，验证主线、记忆、偏好学习（5 条，目标 ≥ 85%）
+  - `blind-isolated` 模式：未参与调参的 100 条 case，验证泛化（目标 ≥ 85%）
+  - `blind-scenario` 模式：未参与调参的 20 条 scenario，验证泛化（目标 ≥ 75%）
   - `all` 模式：同时运行 isolated + scenario
 
 ```bash
@@ -270,7 +272,7 @@ python tests/chat_quality_runner.py --url http://127.0.0.1:8765
 - 所有新行为必须有测试
 - 默认链路必须是 v2.1（`use_v2_brain=true`）
 - legacy 只能 fallback
-- 聊天质量通过率目标 >= 90%
+- 聊天质量通过率目标：isolated ≥ 92%，scenario ≥ 85%，blind ≥ 85%
 
 ## 项目结构
 
@@ -327,7 +329,7 @@ python tests/chat_quality_runner.py --url http://127.0.0.1:8765
 - 新增显式状态机（7 种状态）
 - 新增前台/后台主线管理
 - 新增策略规划器（TurnPolicy）
-- 关系记忆支持持久化和 per-session 隔离
+- 关系记忆支持三层偏好（session / stable / explicit），per-session 隔离
 - 统一 LLMRuntime 接管所有 v2 LLM 调用
 
 ### v2.0 - Companion Agent Core 重构
