@@ -88,15 +88,18 @@ class CompanionAgentCore:
         """
         history = conversation_history or []
 
-        # === Step 1: Situation Routing ===
-        routing = await self.router.classify(user_message, history)
+        # === Step 1: Situation Routing (fast rule-based only) ===
+        routing = await self.router.classify(
+            user_message, history, use_llm=self._enable_llm_router
+        )
 
-        # === Step 2: Memory Retrieval ===
+        # === Step 2: Memory Retrieval (selective tiers) ===
         memory_context = TieredMemoryContext()
         if memory_enabled and routing.retrieve_memory:
             memory_context = await self.memory.retrieve_tiered(
                 query=user_message,
                 situation=routing.situation,
+                tiers=routing.memory_tiers,
             )
 
         # === Step 3: Skill Resolution ===
@@ -125,7 +128,7 @@ class CompanionAgentCore:
         if prompt_suffix:
             system_prompt = system_prompt + "\n\n" + prompt_suffix
 
-        # === Step 5: Memory Update Policy ===
+        # === Step 5: Memory Update Policy (fast rule-based) ===
         memory_decision = MemoryDecision(
             action="ignore",
             reason="记忆已禁用或未触发",
@@ -134,7 +137,7 @@ class CompanionAgentCore:
             privacy_level="public",
             suggested_tags=[],
         )
-        memory_updated = False
+        should_store_async = False
 
         if memory_enabled:
             snapshot = self._get_memory_snapshot()
@@ -142,12 +145,13 @@ class CompanionAgentCore:
                 user_message=user_message,
                 current_memory_snapshot=snapshot,
                 situation=routing.situation,
+                use_llm=self._enable_llm_memory_policy,
             )
 
+            # Don't block reply with sync store — return decision for async store
             if memory_decision.action in ("add", "update"):
                 if not memory_decision.requires_confirmation:
-                    await self.memory.store("user", user_message)
-                    memory_updated = True
+                    should_store_async = True
                 # If requires_confirmation, we don't auto-store
                 # The frontend should prompt the user
 
@@ -159,7 +163,7 @@ class CompanionAgentCore:
             memory_decision=memory_decision,
             memory_context=memory_context,
             skills_activated=[s.name for s in activated_skills],
-            memory_updated=memory_updated,
+            memory_updated=should_store_async,
             safety_flag=routing.safety_flag,
             system_prompt=system_prompt,
             debug_info={
@@ -175,6 +179,7 @@ class CompanionAgentCore:
                     "reason": memory_decision.reason,
                     "confidence": memory_decision.confidence,
                     "requires_confirmation": memory_decision.requires_confirmation,
+                    "should_store_async": should_store_async,
                 },
                 "skills": skill_results,
             },
@@ -207,7 +212,7 @@ class CompanionAgentCore:
             })
 
         # Conversation history
-        for msg in history[-10:]:  # Last 10 messages
+        for msg in history[-6:]:  # Last 6 messages (reduced for speed)
             messages.append(msg)
 
         # Current user message

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+# 加载 .env 文件中的环境变量
+from dotenv import load_dotenv
+load_dotenv()
+
 import asyncio
 import json
 import os

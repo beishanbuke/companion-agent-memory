@@ -299,17 +299,21 @@ class ContextAssembler:
             parts.append("语气：认真，不玩梗")
         
         if not policy.allow_advice:
-            parts.append("策略：先陪伴，不给建议")
+            parts.append("策略：先陪伴，绝对不给建议。禁止出现'你可以'、'你应该'、'试试'、'要不'、'建议'、'方案'、'规划'、'第一步'等字眼。")
+            parts.append("如果用户说'起不来/睡不着/室友关闹钟'等日常吐槽，只接情绪，不给任何解决办法。")
+        
+        if getattr(policy, "skill_verbosity", "") == "short":
+            parts.append("禁止 motivational 空话：'来得及'、'加油'、'努力'、'一定行'、'相信自己'。只给具体可执行的一步，不要灌鸡汤。")
         
         if policy.max_questions == 0:
-            parts.append("限制：不要提问")
+            parts.append("限制：禁止提问，不要出现问号，不要反问，不要追问")
         elif policy.clarify_needed:
             parts.append("限制：最多只问一个澄清问题")
 
         if policy.response_length == "short":
-            parts.append("长度：简短回复")
+            parts.append("长度：简短回复，最多2句话，每句不超过25字，总字数不超过60字")
         elif policy.response_length == "medium":
-            parts.append("长度：中等，别铺太开")
+            parts.append("长度：中等，别铺太开，最多3句话，总字数不超过100字")
 
         if getattr(policy, "allow_recap", False):
             parts.append("动作：先收拢复盘，再提炼一个最值得跟进的点")

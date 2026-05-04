@@ -154,6 +154,13 @@ EOF
 main() {
   local action="${1:-start}"
 
+  # Source .env file if it exists
+  if [[ -f "$ROOT_DIR/.env" ]]; then
+    set -a
+    source "$ROOT_DIR/.env"
+    set +a
+  fi
+
   case "$action" in
     start)
       require_python

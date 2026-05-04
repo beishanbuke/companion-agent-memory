@@ -27,3 +27,5 @@ class SkillOutput:
     summary_for_prompt: str
     user_visible_cards: list[dict] = field(default_factory=list)
     debug: dict = field(default_factory=dict)
+    verbosity_level: str = "hint"  # hint/short/card/full
+    reply_hint: str = ""

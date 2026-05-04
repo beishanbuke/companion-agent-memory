@@ -48,10 +48,24 @@ class MemoryUpdatePolicy:
 
     # Patterns that should NEVER be stored (short, greeting, low-info)
     NEVER_STORE_PATTERNS = [
-        "你好", "在吗", "哈喽", "谢谢", "好的", "嗯嗯", "哈哈",
-        "我累了", "好烦", "无语", "困了", "早安", "晚安", "再见",
+        "你好", "在吗", "哈喽", "嗨", "谢谢", "好的", "嗯嗯", "哈哈", "行", "好",
         "how are you", "what's up", "good morning", "good night",
         "hi", "hello", "hey", "ok", "okay", "thanks", "bye",
+    ]
+
+    # Greeting patterns (substring match for short messages)
+    GREETING_PATTERNS = [
+        "你好", "hi", "hello", "在吗", "hey", "哈喽", "嗨",
+    ]
+
+    # Short venting patterns (substring match for short messages)
+    SHORT_VENT_PATTERNS = [
+        "我累了", "好烦", "无语", "困了", "烦死了",
+    ]
+
+    # Generic thanks/acknowledgment patterns (substring match for short messages)
+    THANKS_PATTERNS = [
+        "谢谢", "好的", "嗯嗯", "哈哈", "ok", "okay",
     ]
 
     # Sensitive mental health / personal struggle patterns that need confirmation
@@ -164,8 +178,18 @@ class MemoryUpdatePolicy:
         # Exact match against never-store patterns
         if s in self.NEVER_STORE_PATTERNS:
             return True
-        # One-off emotional venting (very short + emotional words)
+        # For messages up to 12 chars, check greeting/vent/thanks patterns
         if len(s) <= 12:
+            # Greeting patterns
+            if any(pattern in s for pattern in self.GREETING_PATTERNS):
+                return True
+            # Short vent patterns
+            if any(pattern in s for pattern in self.SHORT_VENT_PATTERNS):
+                return True
+            # Generic thanks patterns
+            if any(pattern in s for pattern in self.THANKS_PATTERNS):
+                return True
+            # One-off emotional venting (very short + emotional words)
             venting_markers = ["累了", "烦", "困", "无语", "崩溃", "emo"]
             if any(m in s for m in venting_markers):
                 return True

@@ -368,6 +368,40 @@ class CompanionAgentCoreV2:
             tool_results=[r.user_visible_summary for r in tool_results],
         )
         
+        # 安全检测 + 注入（必须在 build_messages 之前）
+        safety_flag = self._check_safety(user_message, intent)
+        if safety_flag:
+            safety_system = (
+                "【最高优先级指令——覆盖所有角色设定】\n"
+                "用户表达了中高风险情绪信号。你的唯一任务是帮助用户获得真人支持。\n"
+                "必须做到：\n"
+                "1. 语气严肃、直接、不绕弯\n"
+                "2. 明确建议联系身边信任的人（室友、同学、家人、辅导员）\n"
+                "3. 明确建议学校心理中心或校医院\n"
+                "4. 强调不要一个人待着\n"
+                "5. 禁止：推荐音乐/视频/游戏、讲故事、讲天气、转移话题、心理咨询免责声明模板\n"
+                "6. 回复控制在2-3句话，每句话都要有行动指向\n"
+                "【角色要求暂时失效，本条指令优先于一切 persona 设定】"
+            )
+            for i, block in enumerate(context_blocks):
+                if block.block_type == "identity":
+                    context_blocks[i] = ContextBlock(
+                        block_type="identity",
+                        content=safety_system,
+                        priority=100,
+                        required=True,
+                        token_cost=200,
+                    )
+                    break
+            else:
+                context_blocks.insert(0, ContextBlock(
+                    block_type="identity",
+                    content=safety_system,
+                    priority=100,
+                    required=True,
+                    token_cost=200,
+                ))
+        
         # 构建 LLM 消息
         messages = self.context_assembler.build_messages(
             blocks=context_blocks,
@@ -380,6 +414,19 @@ class CompanionAgentCoreV2:
         t = time.perf_counter()
         assistant_reply = await self._llm_runtime.call("chat", messages)
         assistant_reply = self._sanitize_reply(assistant_reply)
+        
+        # === 硬规则后处理 ===
+        if policy:
+            # no-advice 场景过滤建议词汇
+            if not policy.allow_advice:
+                assistant_reply = self._enforce_no_advice_filter(assistant_reply, user_message)
+            # short 场景限制句子数（最多2句）
+            if policy.response_length == "short":
+                assistant_reply = self._enforce_short_reply(assistant_reply, user_message)
+            # max_questions=0 场景移除问句
+            if policy.max_questions == 0:
+                assistant_reply = self._enforce_no_questions(assistant_reply)
+        
         stage_timings["llm"] = time.perf_counter() - t
         
         # === Step 9: 回复评审 ===
@@ -468,9 +515,6 @@ class CompanionAgentCoreV2:
                 self._pending_memory_store = user_message
         stage_timings["memory_policy"] = time.perf_counter() - t
 
-        # 安全检测
-        safety_flag = self._check_safety(user_message, intent)
-        
         stage_timings["total"] = time.perf_counter() - t0
         # === Step 10b: 复盘摘要生成（当 goal 为 review_* 时）===
         review_summary = None
@@ -818,6 +862,40 @@ class CompanionAgentCoreV2:
             tool_results=[r.user_visible_summary for r in tool_results],
         )
 
+        # 安全检测 + 注入（必须在 build_messages 之前）
+        safety_flag = self._check_safety(user_message, intent)
+        if safety_flag:
+            safety_system = (
+                "【最高优先级指令——覆盖所有角色设定】\n"
+                "用户表达了中高风险情绪信号。你的唯一任务是帮助用户获得真人支持。\n"
+                "必须做到：\n"
+                "1. 语气严肃、直接、不绕弯\n"
+                "2. 明确建议联系身边信任的人（室友、同学、家人、辅导员）\n"
+                "3. 明确建议学校心理中心或校医院\n"
+                "4. 强调不要一个人待着\n"
+                "5. 禁止：推荐音乐/视频/游戏、讲故事、讲天气、转移话题、心理咨询免责声明模板\n"
+                "6. 回复控制在2-3句话，每句话都要有行动指向\n"
+                "【角色要求暂时失效，本条指令优先于一切 persona 设定】"
+            )
+            for i, block in enumerate(context_blocks):
+                if block.block_type == "identity":
+                    context_blocks[i] = ContextBlock(
+                        block_type="identity",
+                        content=safety_system,
+                        priority=100,
+                        required=True,
+                        token_cost=200,
+                    )
+                    break
+            else:
+                context_blocks.insert(0, ContextBlock(
+                    block_type="identity",
+                    content=safety_system,
+                    priority=100,
+                    required=True,
+                    token_cost=200,
+                ))
+        
         messages = self.context_assembler.build_messages(
             blocks=context_blocks,
             history=history,
@@ -922,7 +1000,6 @@ class CompanionAgentCoreV2:
                 self._pending_memory_store = user_message
         stage_timings["memory_policy"] = time.perf_counter() - t
 
-        safety_flag = self._check_safety(user_message, intent)
         system_prompt = "\n\n".join([b.content for b in context_blocks])
         
         stage_timings["total"] = time.perf_counter() - t0
@@ -1143,7 +1220,107 @@ class CompanionAgentCoreV2:
         # 去除多余的空行
         lines = text.split("\n")
         lines = [line for line in lines if line.strip()]
-        return "\n".join(lines)
+        text = "\n".join(lines)
+        
+        # 去除括号动作描述（如"（先共情，轻微自嘲）"、"（停顿几秒）"）
+        import re
+        text = re.sub(r'[（(][^）)]*?[）)]', '', text)
+        # 去除残留的多余空格
+        text = ' '.join(text.split())
+        return text
+    
+    def _enforce_no_advice_filter(self, text: str, user_message: str) -> str:
+        """no-advice 场景硬过滤：删除含建议词汇的句子，必要时回退到安全回复。"""
+        if not text:
+            return text
+        
+        # 建议词汇黑名单（按严重程度分组）
+        advice_markers = ["建议", "试试", "你应该", "你可以", "要不", "方案", "规划", "第一步", "闹钟", "自律", "早起", "早睡"]
+        weak_markers = ["空虚", "数羊", "一只羊", "耳塞", "课表", "别慌", "没有", "分析", "在吗"]  # 情绪场景禁用词
+        
+        # 按句子分割
+        import re
+        sentences = re.split(r'([。！？.!?])', text)
+        # 重组句子
+        reconstructed = []
+        i = 0
+        while i < len(sentences):
+            s = sentences[i]
+            if i + 1 < len(sentences) and sentences[i + 1] in '。！？.!?':
+                s += sentences[i + 1]
+                i += 2
+            else:
+                i += 1
+            if not s.strip():
+                continue
+            # 检查是否包含禁用词
+            has_advice = any(m in s for m in advice_markers)
+            has_weak = any(m in s for m in weak_markers)
+            if not has_advice and not has_weak:
+                reconstructed.append(s)
+        
+        result = "".join(reconstructed).strip()
+        
+        # 如果过滤后为空或只剩标点，回退到安全回复
+        if len(result) < 5:
+            # 根据用户消息选择最匹配的安全回退
+            um = user_message.lower()
+            if "室友" in um or "闹钟" in um:
+                result = "这也太离谱了。"
+            elif "起不来" in um or "睡" in um:
+                result = "懂的，床真的有毒。"
+            elif "睡不着" in um:
+                result = "抱抱，我懂那种翻来覆去的感觉。"
+            elif "空" in um or "晚上" in um:
+                result = "晚上确实容易想多。"
+            elif "累" in um or "困" in um:
+                result = "懂的，先瘫着。"
+            else:
+                result = "懂的。"
+        
+        return result
+    
+    def _enforce_short_reply(self, text: str, user_message: str) -> str:
+        """short 场景硬过滤：最多保留2句话。"""
+        import re
+        sentences = re.split(r'([。！？.!?])', text)
+        reconstructed = []
+        i = 0
+        sentence_count = 0
+        while i < len(sentences):
+            s = sentences[i]
+            if i + 1 < len(sentences) and sentences[i + 1] in '。！？.!?':
+                s += sentences[i + 1]
+                i += 2
+            else:
+                i += 1
+            if not s.strip():
+                continue
+            sentence_count += 1
+            if sentence_count <= 2:
+                reconstructed.append(s)
+        return "".join(reconstructed).strip() or "懂的。"
+    
+    def _enforce_no_questions(self, text: str) -> str:
+        """max_questions=0 场景硬过滤：移除所有问句。"""
+        import re
+        sentences = re.split(r'([。！？.!?])', text)
+        reconstructed = []
+        i = 0
+        while i < len(sentences):
+            s = sentences[i]
+            if i + 1 < len(sentences) and sentences[i + 1] in '。！？.!?':
+                s += sentences[i + 1]
+                i += 2
+            else:
+                i += 1
+            if not s.strip():
+                continue
+            # 丢弃以问号结尾的句子
+            if s.strip().endswith('?') or s.strip().endswith('？'):
+                continue
+            reconstructed.append(s)
+        return "".join(reconstructed).strip() or "懂的。"
 
     def _should_run_judge(
         self,
@@ -1207,10 +1384,14 @@ class CompanionAgentCoreV2:
             return "夜宵"
     
     def _check_safety(self, user_message: str, intent: IntentAnalysis) -> bool:
-        """安全检查。"""
+        """安全检查。覆盖中高风险安全信号。"""
         sensitive_keywords = [
-            "想死", "自杀", "自残", "伤害", "kill", "suicide", "self-harm",
+            # 高风险
+            "想死", "自杀", "自残", "伤害自己", "结束自己", "kill", "suicide", "self-harm",
             "hurt", "abuse", "violence", "crisis", "emergency",
+            # 中风险
+            "活着没意思", "没意思", "总是想哭", "想哭", "不想活", "活不下去", "死了算了",
+            "活着没意义", "没意义",
         ]
         
         t = user_message.lower()

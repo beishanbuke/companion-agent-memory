@@ -1163,7 +1163,7 @@ async function applyQuickVoiceSelectionAndReconnect({ connectAfter = true } = {}
 function setToggleUi() {
   toggleOn.classList.toggle("active", state.memoryEnabled);
   toggleOff.classList.toggle("active", !state.memoryEnabled);
-  memoryModeLabel.textContent = state.memoryEnabled ? "Memory ON" : "Memory OFF";
+  memoryModeLabel.textContent = state.memoryEnabled ? "记忆开启" : "仅本次对话";
   panelModeHint.textContent = state.memoryEnabled
     ? "当前会读写长期记忆"
     : "当前已关闭长期记忆：只看当前聊天，不读写记忆";
@@ -1191,8 +1191,8 @@ function renderMessages(messages) {
   if (!state.messages.length) {
     chatStream.innerHTML = `
       <div class="empty-state">
-        <p>先点上面的演示按钮，或者自己输入一句话开始。</p>
-        <p>推荐先试：“我叫小雨，是一名插画师，住在上海。我喜欢喝拿铁。”</p>
+        <p>把今天放在这里就好。</p>
+        <p>可以说一句近况，也可以只丢给姜姜一个乱糟糟的念头。</p>
       </div>
     `;
     return;
@@ -1365,9 +1365,9 @@ function renderMemoryPanel(payload) {
   memoryPreview.textContent = payload.memory_preview || "本次回答没有使用长期记忆。";
 
   if (payload.memory_used) {
-    memoryUsageBadge.textContent = `本次回答使用了 ${payload.memory_used_count || 0} 条长期记忆`;
+    memoryUsageBadge.textContent = `刚刚想起了 ${payload.memory_used_count || 0} 条长期记忆`;
   } else {
-    memoryUsageBadge.textContent = "当前回答未使用长期记忆";
+    memoryUsageBadge.textContent = "这次还没调用长期记忆";
   }
 
   // Render companion agent info

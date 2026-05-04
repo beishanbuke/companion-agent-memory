@@ -65,6 +65,11 @@ class RelationshipMemory:
             self._profiles[session_id] = RelationshipProfile()
         return self._profiles[session_id]
     
+    def _is_explicit_preference(self, user_message: str) -> bool:
+        """Check if user is explicitly stating a preference to remember."""
+        explicit_markers = ["记住", "以后", "一直", "永远"]
+        return any(marker in user_message for marker in explicit_markers)
+    
     def _update_preference(
         self,
         profile: RelationshipProfile,
@@ -72,41 +77,43 @@ class RelationshipMemory:
         new_value: Any,
         explicit: bool = False,
     ) -> bool:
-        """更新偏好，返回是否写入长期档案。
+        """Update preference, return whether written to long-term profile.
         
         Rules:
-        - explicit=True: 直接写入长期档案
-        - explicit=False: 先计入 session_preferences，达到 STABLE_THRESHOLD 才持久化
+        - explicit=True: immediately persisted
+        - explicit=False: stored in session_preferences, persisted after STABLE_THRESHOLD repetitions
         """
         if explicit:
             setattr(profile, key, new_value)
             profile.evidence.setdefault(key, []).append(f"用户明确要求: {new_value}")
+            # Clear any session tracking for this key
+            profile.session_preferences.pop(key, None)
+            profile.preference_counts.pop(key, None)
             return True
         
-        # 先放入 session_preferences
+        # Store in session_preferences first
         old_session = profile.session_preferences.get(key)
         profile.session_preferences[key] = new_value
         
-        # 如果和上次 session 值相同，计数+1
+        # Increment count if same value repeated
         if old_session == new_value:
             profile.preference_counts[key] = profile.preference_counts.get(key, 0) + 1
         else:
-            # 偏好变化，重置计数
+            # Preference changed, reset count
             profile.preference_counts[key] = 1
         
-        # 达到稳定阈值才持久化
+        # Persist only after reaching stable threshold
         if profile.preference_counts.get(key, 0) >= self.STABLE_THRESHOLD:
             setattr(profile, key, new_value)
             profile.evidence.setdefault(key, []).append(
                 f"连续{self.STABLE_THRESHOLD}次出现，稳定化: {new_value}"
             )
-            # 清空 session 记录
+            # Clear session tracking
             profile.session_preferences.pop(key, None)
-            profile.preference_counts[key] = 0
+            profile.preference_counts.pop(key, None)
             return True
         
         return False
-    
     def learn_from_interaction(
         self,
         user_message: str,
@@ -123,8 +130,10 @@ class RelationshipMemory:
         """
         profile = self._get_or_create(session_id)
         
+        # Detect explicit preference statements
+        explicit = self._is_explicit_preference(user_message)
+        
         # === 学习 comfort_style ===
-        explicit = any(kw in user_message for kw in ["以后直接说", "以后别哄我", "以后温柔点"])
         if any(kw in user_message for kw in ["太温柔", "别哄我", "直接说"]):
             self._update_preference(profile, "comfort_style", "direct", explicit=explicit)
             profile.evidence.setdefault("comfort_style", []).append("用户要求直接说")
@@ -145,24 +154,23 @@ class RelationshipMemory:
             self._update_preference(
                 profile, "banter_tolerance",
                 max(0.1, profile.banter_tolerance - 0.1),
-                explicit=False,
+                explicit=explicit,
             )
             profile.evidence.setdefault("banter_tolerance", []).append("用户要求正经")
         
         # === 学习 advice_threshold ===
-        explicit_advice = any(kw in user_message for kw in ["以后别给建议", "以后多给建议", "记住我喜欢"])
         if intent.primary_intent == "advice" and intent.task_urgency > 0.5:
             self._update_preference(
                 profile, "advice_threshold",
                 min(1.0, profile.advice_threshold + 0.03),
-                explicit=explicit_advice,
+                explicit=explicit,
             )
             profile.evidence.setdefault("advice_threshold", []).append("用户主动求助")
         elif any(kw in user_message for kw in ["别教我", "我知道", "别建议"]):
             self._update_preference(
                 profile, "advice_threshold",
                 max(0.1, profile.advice_threshold - 0.1),
-                explicit=explicit_advice,
+                explicit=explicit,
             )
             profile.evidence.setdefault("advice_threshold", []).append("用户拒绝建议")
         
@@ -257,4 +265,25 @@ class RelationshipMemory:
             "version": profile.version,
             "session_preferences": profile.session_preferences,
             "preference_counts": profile.preference_counts,
+        }
+    
+    def get_preference_summary(self, session_id: str = "") -> dict[str, Any]:
+        """Return both session and stable preferences for a session.
+        
+        Returns:
+            dict with:
+            - stable: dict of persisted preferences
+            - session: dict of current session-only preferences
+            - counts: dict of repetition counts toward stabilization
+        """
+        profile = self._get_or_create(session_id)
+        return {
+            "stable": {
+                "comfort_style": profile.comfort_style,
+                "banter_tolerance": profile.banter_tolerance,
+                "advice_threshold": profile.advice_threshold,
+                "humor_mode": profile.humor_mode,
+            },
+            "session": dict(profile.session_preferences),
+            "counts": dict(profile.preference_counts),
         }

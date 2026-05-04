@@ -218,7 +218,7 @@ async def build_context_v3(input_data: ContextBuildInput) -> ContextBuildResult:
         # 从记忆中提取相关片段
         memory_snippets: list[str] = []
         # 如果有历史，简单提取用户提到的话题
-        for msg in input_data.history[-10:]:
+        for msg in input_data.history[-6:]:  # Reduced for speed
             if msg.role == "user" and len(msg.content) > 5:
                 memory_snippets.append(msg.content[:50])
         

@@ -86,6 +86,7 @@ class ReviewExtractor:
         background_threads: list[ThreadSnapshot],
         current_state: dict[str, Any],
         scope: str = "day",
+        recent_reviews: list[dict[str, Any]] | None = None,
     ) -> ReviewSummary:
         """从多轮对话中抽取复盘摘要。
         
@@ -95,6 +96,7 @@ class ReviewExtractor:
             background_threads: 后台主线列表
             current_state: 当前对话状态摘要
             scope: 复盘范围 day/week/phase
+            recent_reviews: 最近复盘记录的 system_summary 列表
             
         Returns:
             ReviewSummary
@@ -126,9 +128,33 @@ class ReviewExtractor:
         
         # === 9. 提取话题 ===
         topics = self._extract_topics(turns, active_thread, background_threads)
-        
+
         # === 10. 推断用户场景 ===
         user_scene = current_state.get("user_scene", "unknown")
+
+        # === 11. 用线程胶囊补强 ===
+        key_events, blockers, wins, next_actions, topics = self._merge_thread_context(
+            key_events=key_events,
+            blockers=blockers,
+            wins=wins,
+            next_actions=next_actions,
+            topics=topics,
+            active_thread=active_thread,
+            background_threads=background_threads,
+        )
+
+        # === 12. 用最近复盘记录补强 ===
+        dominant_emotion, energy_pattern, key_events, blockers, wins, next_actions, topics = self._merge_recent_reviews(
+            dominant_emotion=dominant_emotion,
+            energy_pattern=energy_pattern,
+            key_events=key_events,
+            blockers=blockers,
+            wins=wins,
+            next_actions=next_actions,
+            topics=topics,
+            recent_reviews=recent_reviews or [],
+            scope=scope,
+        )
         
         # 组装结构化摘要
         structured = {
@@ -157,6 +183,105 @@ class ReviewExtractor:
             user_visible=user_visible,
             structured=structured,
         )
+
+    def _merge_thread_context(
+        self,
+        key_events: list[str],
+        blockers: list[str],
+        wins: list[str],
+        next_actions: list[str],
+        topics: list[str],
+        active_thread: ThreadSnapshot | None,
+        background_threads: list[ThreadSnapshot],
+    ) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
+        """用线程胶囊补强复盘抽取。"""
+        threads = ([active_thread] if active_thread else []) + list(background_threads)
+        for thread in threads:
+            if not thread:
+                continue
+            capsule = thread.resume_capsule or {}
+            hint = capsule.get("resume_hint_for_reply", "")
+            if hint:
+                key_events.append(hint[:80])
+            blocker = capsule.get("current_blocker", "")
+            if blocker:
+                blockers.extend([part.strip() for part in blocker.split(",") if part.strip()])
+            next_action = capsule.get("next_recommended_action", "")
+            if next_action:
+                next_actions.append(next_action)
+            why = capsule.get("why_it_matters", "")
+            if why:
+                wins.append(f"持续在推进{thread.name}")
+            if thread.thread_type and thread.thread_type not in topics:
+                topics.append(thread.thread_type)
+            if thread.name and thread.name != "闲聊" and thread.name not in topics:
+                topics.append(thread.name)
+        return (
+            self._dedupe_keep_order(key_events),
+            self._dedupe_keep_order(blockers),
+            self._dedupe_keep_order(wins),
+            self._dedupe_keep_order(next_actions),
+            self._dedupe_keep_order(topics),
+        )
+
+    def _merge_recent_reviews(
+        self,
+        dominant_emotion: str,
+        energy_pattern: str,
+        key_events: list[str],
+        blockers: list[str],
+        wins: list[str],
+        next_actions: list[str],
+        topics: list[str],
+        recent_reviews: list[dict[str, Any]],
+        scope: str,
+    ) -> tuple[str, str, list[str], list[str], list[str], list[str], list[str]]:
+        """把最近复盘记录并入当前复盘摘要。"""
+        if not recent_reviews:
+            return dominant_emotion, energy_pattern, key_events, blockers, wins, next_actions, topics
+
+        emotion_counts: dict[str, int] = {}
+        energy_counts: dict[str, int] = {}
+        for review in recent_reviews:
+            emotion = review.get("dominant_emotion", "")
+            if emotion:
+                emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
+            energy = review.get("energy_pattern", "")
+            if energy:
+                energy_counts[energy] = energy_counts.get(energy, 0) + 1
+            key_events.extend(review.get("key_events", [])[:2])
+            blockers.extend(review.get("blockers", [])[:2])
+            wins.extend(review.get("wins", [])[:2])
+            next_actions.extend(review.get("next_actions", [])[:2])
+            topics.extend(review.get("topics", [])[:2])
+
+        if scope in ("week", "phase"):
+            if emotion_counts:
+                dominant_emotion = max(emotion_counts, key=emotion_counts.get)
+            if energy_counts:
+                energy_pattern = max(energy_counts, key=energy_counts.get)
+
+        return (
+            dominant_emotion,
+            energy_pattern,
+            self._dedupe_keep_order(key_events),
+            self._dedupe_keep_order(blockers),
+            self._dedupe_keep_order(wins),
+            self._dedupe_keep_order(next_actions),
+            self._dedupe_keep_order(topics),
+        )
+
+    @staticmethod
+    def _dedupe_keep_order(items: list[str]) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
+        for item in items:
+            clean = (item or "").strip()
+            if not clean or clean in seen:
+                continue
+            seen.add(clean)
+            result.append(clean)
+        return result
     
     def _extract_key_events(self, turns: list[ConversationTurn]) -> list[str]:
         """提取关键事件。"""
@@ -267,7 +392,7 @@ class ReviewExtractor:
         """推断情绪趋势。"""
         intensities = []
         for turn in turns:
-            if turn.role == "user" and "intent" in turn.intent:
+            if turn.role == "user" and turn.intent:
                 intensities.append(turn.intent.get("emotional_intensity", 0.3))
         
         if len(intensities) < 2:
@@ -283,7 +408,7 @@ class ReviewExtractor:
         """计算平均情绪强度。"""
         intensities = []
         for turn in turns:
-            if turn.role == "user" and "intent" in turn.intent:
+            if turn.role == "user" and turn.intent:
                 intensities.append(turn.intent.get("emotional_intensity", 0.3))
         
         if not intensities:
@@ -311,7 +436,7 @@ class ReviewExtractor:
         
         # 从用户消息中提取任务类别
         for turn in turns:
-            if turn.role == "user" and "intent" in turn.intent:
+            if turn.role == "user" and turn.intent:
                 task = turn.intent.get("task_category", "")
                 if task and task != "none":
                     topics.append(task)

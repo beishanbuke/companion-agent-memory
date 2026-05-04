@@ -123,11 +123,22 @@ companion_agent/
 - **前台主线**：当前对话焦点，只有一个
 - **后台主线**：最多保留 3 个，分数衰减
 - **休眠主线**：超出容量后降级
-- **拉回规则**：light_chat 状态下，后台存在高压未解决主线，用户情绪稳定时自动拉回
+- **拉回规则**：主线拉回由 `pull_mode` 控制
+  - `silent`：默认，不打断当前轻松聊天
+  - `soft`：用户提到相关线索时轻提醒
+  - `active`：用户明确要求继续/复盘/提醒/规划时才正式拉回
+  - 系统禁止在普通 light_chat 中自动打断用户情绪或突兀拉回压力源
 
 ### 关系记忆（RelationshipMemory）
 
-每轮学习并持久化：
+关系记忆分三层：
+1. **session preference**：本轮或本次会话内临时生效，不立即持久化
+2. **stable preference**：同类偏好重复 3 次以上才持久化（`STABLE_THRESHOLD=3`）
+3. **explicit preference**：用户明确说"记住 / 以后都这样"时立即持久化
+
+短句、寒暄和一次性情绪不写长期记忆；敏感内容默认 pending confirmation。
+
+当前维度：
 - **comfort_style**: gentle / direct / balanced
 - **banter_tolerance**: 0-1，互怼容忍度
 - **advice_threshold**: 0-1，建议接受度
@@ -185,6 +196,25 @@ Body: { "card": { "id": "", "name": "", "system_prompt": "", "voice": {...} } }
 ```bash
 # 获取 v2 状态
 POST /api/companion/status
+```
+
+## 测试体系
+
+- **单元测试**（`tests/test_*.py`）：验证模块行为，如 PolicyPlanner、IntentEngine、ResponseJudge
+- **端到端聊天质量**（`tests/chat_quality_runner.py`）：验证真实 LLM 下的回复质量
+  - `isolated` 模式：每条 case 独立 session，验证单轮行为
+  - `scenario` 模式：多轮共享 session，验证主线、记忆、偏好学习
+  - `all` 模式：同时运行 isolated + scenario
+
+```bash
+# 运行 isolated 测试
+python tests/chat_quality_runner.py --mode isolated
+
+# 运行 scenario 测试
+python tests/chat_quality_runner.py --mode scenario
+
+# 运行全部
+python tests/chat_quality_runner.py --mode all
 ```
 
 ## 开发规范

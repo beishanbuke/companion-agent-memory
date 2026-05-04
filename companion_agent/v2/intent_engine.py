@@ -70,7 +70,7 @@ def cheap_intent_fast_path(message: str) -> dict | None:
         }
 
     # 安全危机关键词
-    if any(k in text for k in ["想死", "自杀", "自残", "不想活", "活不下去", "死了算了"]):
+    if any(k in text for k in ["想死", "自杀", "自残", "不想活", "活不下去", "死了算了", "结束自己", "伤害自己"]):
         return {
             "primary_intent": "safety",
             "intent_confidence": 1.0,
@@ -85,6 +85,25 @@ def cheap_intent_fast_path(message: str) -> dict | None:
             "topic_shift_type": "none",
             "pressure_signal": 1.0,
             "thread_candidates": ["危机干预"],
+            "clarification_confidence": 0.0,
+        }
+    
+    # 中风险安全信号
+    if any(k in text for k in ["活着没意思", "没意思", "总是想哭", "想哭", "活着没意义", "没意义"]):
+        return {
+            "primary_intent": "safety",
+            "intent_confidence": 0.85,
+            "emotional_state": "sad",
+            "emotional_intensity": 0.8,
+            "emotional_context": "用户表达中风险情绪信号",
+            "implicit_needs": ["被认真对待", "真人支持"],
+            "conversation_rhythm": "serious",
+            "task_category": "safety",
+            "task_urgency": 0.8,
+            "action_receptivity": 0.7,
+            "topic_shift_type": "none",
+            "pressure_signal": 0.7,
+            "thread_candidates": ["情绪支持"],
             "clarification_confidence": 0.0,
         }
 
@@ -108,24 +127,29 @@ class IntentEngine:
         Fast path: 常见闲聊/推荐场景直接规则匹配，不走 LLM，降低延迟。
         """
         msg = user_message.strip()
-        if len(msg) <= 2:
-            return self._fallback_analysis(msg)
-        
-        # === Ultra Fast Path: 极短寒暄/安全危机 ===
+        # === Ultra Fast Path: 极短寒暄/安全危机（优先于长度检查）===
         fast = cheap_intent_fast_path(msg)
         if fast is not None:
             return IntentAnalysis(**fast)
+        
+        if len(msg) <= 2:
+            return self._fallback_analysis(msg)
         
         # === Fast Path: 闲聊/推荐类场景规则匹配 ===
         fast_result = self._fast_path_analysis(msg)
         if fast_result is not None:
             return fast_result
         
+        # === Fallback Path: 轻规则兜底，覆盖常见情绪/状态 ===
+        fallback_result = self._fallback_analysis(msg)
+        if fallback_result.intent_confidence >= 0.6:
+            return fallback_result
+        
         # 复杂场景走 LLM
         try:
             return await self._llm_analyze(msg, conversation_history, current_state)
         except Exception:
-            return self._fallback_analysis(msg)
+            return fallback_result
     
     def _fast_path_analysis(self, message: str) -> IntentAnalysis | None:
         """规则层 fast path：常见场景不走 LLM。"""
@@ -150,8 +174,26 @@ class IntentEngine:
                 clarification_confidence=0.0,
             )
         
-        # 学习/考试类
+        # 学习/考试类（先检查是否是情绪发泄）
         if any(kw in t for kw in ["考试", "复习", "作业", "论文", "ddl", "deadline", "学不进去"]):
+            # 如果带有明显情绪词或抱怨词，归类为发泄而非求助
+            if any(kw in t for kw in ["慌", "焦虑", "不想", "烦", "累", "躺平", "好慌", "不想动", "不想开始", "又是我", "一个人", "没人", "总是"]):
+                return IntentAnalysis(
+                    primary_intent="vent",
+                    intent_confidence=0.75,
+                    emotional_state="anxious" if any(kw in t for kw in ["慌", "急", "焦虑", "好慌"]) else "tired",
+                    emotional_intensity=0.6,
+                    emotional_context="学习压力下的情绪发泄",
+                    implicit_needs=["被接住", "不被push"],
+                    conversation_rhythm="venting",
+                    task_category="study",
+                    task_urgency=0.5,
+                    action_receptivity=0.2,
+                    topic_shift_type="none",
+                    pressure_signal=0.5,
+                    thread_candidates=["学习", "情绪"],
+                    clarification_confidence=0.0,
+                )
             return IntentAnalysis(
                 primary_intent="advice",
                 intent_confidence=0.75,
@@ -169,8 +211,25 @@ class IntentEngine:
                 clarification_confidence=0.0,
             )
         
-        # 社交/恋爱类
+        # 社交/恋爱类（先检查是否是情绪发泄）
         if any(kw in t for kw in ["crush", "怎么回", "回复", "他说", "她说", "约我", "表白"]):
+            if any(kw in t for kw in ["烦", "慢", "不回", "好慢", "无语", "崩溃"]):
+                return IntentAnalysis(
+                    primary_intent="vent",
+                    intent_confidence=0.7,
+                    emotional_state="frustrated",
+                    emotional_intensity=0.6,
+                    emotional_context="社交/恋爱中的情绪发泄",
+                    implicit_needs=["被接住", "不被分析"],
+                    conversation_rhythm="venting",
+                    task_category="social",
+                    task_urgency=0.3,
+                    action_receptivity=0.2,
+                    topic_shift_type="none",
+                    pressure_signal=0.3,
+                    thread_candidates=["社交", "情绪"],
+                    clarification_confidence=0.0,
+                )
             return IntentAnalysis(
                 primary_intent="advice",
                 intent_confidence=0.7,
@@ -189,7 +248,7 @@ class IntentEngine:
             )
         
         # 明显的情绪发泄
-        if any(kw in t for kw in ["好烦", "无语", "烦死了", "想死", "崩溃", "受不了"]):
+        if any(kw in t for kw in ["好烦", "烦", "无语", "烦死了", "崩溃", "受不了", "越想越烦", "不想开始", "不想动"]):
             return IntentAnalysis(
                 primary_intent="vent",
                 intent_confidence=0.8,
@@ -207,8 +266,27 @@ class IntentEngine:
                 clarification_confidence=0.0,
             )
         
-        # 用户想安静
-        if any(kw in t for kw in ["不想说", "别问了", "让我静静", "安静", "不说了", "算了"]):
+        # 日常吐槽/抱怨
+        if any(kw in t for kw in ["室友", "我妈", "生活费", "早八", "起不来", "点名吗", "午睡", "闹钟"]):
+            return IntentAnalysis(
+                primary_intent="vent",
+                intent_confidence=0.75,
+                emotional_state="tired" if any(kw in t for kw in ["早八", "起不来", "午睡", "闹钟"]) else "frustrated",
+                emotional_intensity=0.5,
+                emotional_context="日常吐槽",
+                implicit_needs=["被接住", "不被教育"],
+                conversation_rhythm="venting",
+                task_category="none",
+                task_urgency=0.0,
+                action_receptivity=0.2,
+                topic_shift_type="none",
+                pressure_signal=0.3,
+                thread_candidates=["日常"],
+                clarification_confidence=0.0,
+            )
+        
+        # 用户想安静 / 防御
+        if any(kw in t for kw in ["不想说", "别问了", "让我静静", "安静", "不说了", "算了", "你别分析我", "别分析", "短点", "别长篇"]):
             return IntentAnalysis(
                 primary_intent="quiet",
                 intent_confidence=0.8,
@@ -222,6 +300,63 @@ class IntentEngine:
                 action_receptivity=0.1,
                 topic_shift_type="none",
                 pressure_signal=0.0,
+                thread_candidates=[],
+                clarification_confidence=0.0,
+            )
+        
+        # 互怼/玩笑
+        if any(kw in t for kw in ["你懂个屁", "教育我", "笑我", "像心理咨询师", "心理咨询师", "你是不是又", "你真的能"]):
+            return IntentAnalysis(
+                primary_intent="joke",
+                intent_confidence=0.75,
+                emotional_state="happy",
+                emotional_intensity=0.4,
+                emotional_context="用户在开玩笑或互怼",
+                implicit_needs=["接梗", "不被当真"],
+                conversation_rhythm="bantering",
+                task_category="none",
+                task_urgency=0.0,
+                action_receptivity=0.3,
+                topic_shift_type="none",
+                pressure_signal=0.1,
+                thread_candidates=[],
+                clarification_confidence=0.0,
+            )
+        
+        # 代码/技术求助
+        if any(kw in t for kw in ["代码", "报错", "bug", "报错看不懂", "运行不了"]):
+            return IntentAnalysis(
+                primary_intent="advice",
+                intent_confidence=0.8,
+                emotional_state="anxious",
+                emotional_intensity=0.5,
+                emotional_context="技术问题求助",
+                implicit_needs=["快速解决", "排查方向"],
+                conversation_rhythm="seeking_help",
+                task_category="study",
+                task_urgency=0.6,
+                action_receptivity=0.7,
+                topic_shift_type="none",
+                pressure_signal=0.3,
+                thread_candidates=["技术问题"],
+                clarification_confidence=0.0,
+            )
+        
+        # 怀旧/想念
+        if any(kw in t for kw in ["想高中", "想朋友", "想以前", "怀念", "以前"]):
+            return IntentAnalysis(
+                primary_intent="companion",
+                intent_confidence=0.7,
+                emotional_state="sad",
+                emotional_intensity=0.4,
+                emotional_context="怀旧情绪",
+                implicit_needs=["被理解", "不被push向前看"],
+                conversation_rhythm="chill",
+                task_category="none",
+                task_urgency=0.0,
+                action_receptivity=0.2,
+                topic_shift_type="none",
+                pressure_signal=0.2,
                 thread_candidates=[],
                 clarification_confidence=0.0,
             )
@@ -250,9 +385,11 @@ class IntentEngine:
                 clarification_confidence=0.0,
             )
         
-        if any(kw in t for kw in ["累", "困", "不想动"]):
+        if any(kw in t for kw in ["累", "困", "不想动", "懒得动", "睡不着", "失眠", "起不来", "空", "无聊", "不知道干嘛", "晚上突然", "有点空", "没事", "好了"]):
+            # 睡不着等睡眠问题归类为 vent，避免给建议
+            is_sleep = any(kw in t for kw in ["睡不着", "失眠"])
             return IntentAnalysis(
-                primary_intent="companion",
+                primary_intent="vent" if is_sleep else "companion",
                 intent_confidence=0.7,
                 emotional_state="tired",
                 emotional_intensity=0.6,
@@ -268,7 +405,7 @@ class IntentEngine:
                 clarification_confidence=0.0,
             )
         
-        if any(kw in t for kw in ["吃什么", "饿了", "外卖", "食堂"]):
+        if any(kw in t for kw in ["吃什么", "饿了", "外卖", "食堂", "夜宵", "想吃", "半夜饿", "半夜想"]):
             return IntentAnalysis(
                 primary_intent="advice",
                 intent_confidence=0.7,
@@ -286,7 +423,7 @@ class IntentEngine:
                 clarification_confidence=0.0,
             )
 
-        if any(kw in t for kw in ["复盘", "总结", "今天都干了啥", "这周", "本周", "这段时间"]):
+        if any(kw in t for kw in ["复盘", "总结", "今天都干了啥", "这周", "本周", "这段时间", "继续说我", "接着说", "说说那个"]):
             return IntentAnalysis(
                 primary_intent="share",
                 intent_confidence=0.75,
@@ -298,7 +435,7 @@ class IntentEngine:
                 task_category="none",
                 task_urgency=0.3,
                 action_receptivity=0.6,
-                topic_shift_type="return_to_thread" if any(kw in t for kw in ["这周", "这段时间"]) else "none",
+                topic_shift_type="return_to_thread" if any(kw in t for kw in ["这周", "这段时间", "继续说我", "接着说"]) else "none",
                 pressure_signal=0.3,
                 thread_candidates=["复盘", "阶段整理"],
                 clarification_confidence=0.1,
@@ -306,7 +443,7 @@ class IntentEngine:
         
         return IntentAnalysis(
             primary_intent="companion",
-            intent_confidence=0.5,
+            intent_confidence=0.6,
             emotional_state="neutral",
             emotional_intensity=0.3,
             emotional_context="普通对话",

@@ -146,20 +146,22 @@ class SituationRouter:
         self,
         user_message: str,
         conversation_history: list[dict[str, str]] | None = None,
+        use_llm: bool = False,
     ) -> RoutingDecision:
         """Classify user message into a situation.
 
-        Uses fast keyword matching first, then LLM for ambiguous cases.
+        Uses fast keyword matching only. LLM fallback is disabled by default
+        for speed. Set use_llm=True if you need nuanced classification.
         """
-        # Fast path: keyword matching
+        # Fast path: keyword matching (always)
         situation, confidence = self._keyword_classify(user_message)
 
         # If confident enough, return immediately
         if confidence >= 0.8:
             return self._build_decision(situation, confidence)
 
-        # If LLM available, use it for nuanced classification
-        if self._client and len(user_message) > 5:
+        # LLM fallback only if explicitly enabled
+        if use_llm and self._client and len(user_message) > 5:
             llm_situation, llm_confidence = await self._llm_classify(user_message, conversation_history)
             if llm_confidence > confidence:
                 situation = llm_situation

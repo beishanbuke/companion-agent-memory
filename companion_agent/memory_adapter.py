@@ -102,6 +102,7 @@ class MemoryLayerAdapter:
         query: str = "",
         situation: str = "casual_chat",
         limit: int = 10,
+        tiers: list[str] | None = None,
     ) -> TieredMemoryContext:
         """Retrieve memories organized into 5 tiers.
 
@@ -109,6 +110,9 @@ class MemoryLayerAdapter:
             query: User message or query string
             situation: Current situation category
             limit: Max memories to retrieve
+            tiers: Which tiers to retrieve. If None, retrieves all.
+                Options: "profile", "preferences", "long_term_goals",
+                "episodic_events", "safety_notes"
 
         Returns:
             TieredMemoryContext with organized memories
@@ -123,20 +127,28 @@ class MemoryLayerAdapter:
 
         context = TieredMemoryContext(raw_memory_text=raw_text)
 
+        # Default: all tiers. Otherwise only requested tiers.
+        all_tiers = tiers is None
+
         # Tier 1: Profile (persona_slots)
-        context.profile = self._extract_profile(snapshot)
+        if all_tiers or "profile" in tiers:
+            context.profile = self._extract_profile(snapshot)
 
         # Tier 2: Preferences
-        context.preferences = self._extract_preferences(snapshot)
+        if all_tiers or "preferences" in tiers:
+            context.preferences = self._extract_preferences(snapshot)
 
         # Tier 3: Long-term goals (from events with goal tags)
-        context.long_term_goals = self._extract_goals(snapshot)
+        if all_tiers or "long_term_goals" in tiers:
+            context.long_term_goals = self._extract_goals(snapshot)
 
         # Tier 4: Episodic events
-        context.episodic_events = self._extract_events(snapshot)
+        if all_tiers or "episodic_events" in tiers:
+            context.episodic_events = self._extract_events(snapshot)
 
         # Tier 5: Safety notes
-        context.safety_notes = self._extract_safety_notes(snapshot)
+        if all_tiers or "safety_notes" in tiers:
+            context.safety_notes = self._extract_safety_notes(snapshot)
 
         context.memory_count = (
             len(context.profile)

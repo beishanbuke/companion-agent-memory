@@ -2173,6 +2173,8 @@ class DemoSession:
         self.last_updates = []
         self.last_memory_text = ""
         self.last_memory_count = 0
+        # Clear memory store
+        await self.memory.clear()
         # Reset v2 state tracker (full reset)
         if self.companion_core_v2:
             self.companion_core_v2.state_tracker.reset_session(full_reset=True)

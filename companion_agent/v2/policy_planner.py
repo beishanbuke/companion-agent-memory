@@ -156,6 +156,32 @@ class PolicyPlanner:
         
         # === 2. 根据意图和状态决定策略 ===
         
+        # 安全风险 -> stabilize (最高优先级)
+        if intent.primary_intent == "safety":
+            policy.goal = "stabilize"
+            policy.target_state = "support_crisis"
+            policy.allow_advice = False
+            policy.allow_humor = False
+            policy.max_questions = 0
+            policy.max_actions = 0
+            policy.response_length = "short"
+            policy.context_profile = "minimal"
+            policy.skill_verbosity = "none"
+            policy.reason = "用户表达安全风险信号，优先稳定"
+            return self._finalize_policy(policy)
+        
+        # 极短问候 -> 简短回应，不反问
+        if intent.primary_intent == "casual":
+            policy.goal = "stay_light"
+            policy.target_state = "light_chat"
+            policy.allow_advice = False
+            policy.max_questions = 0
+            policy.response_length = "short"
+            policy.context_profile = "minimal"
+            policy.skill_verbosity = "hint"
+            policy.reason = "简短问候"
+            return self._finalize_policy(policy)
+        
         # 高压情绪 -> stabilize
         if intent.emotional_intensity > 0.8:
             policy.goal = "stabilize"
@@ -181,6 +207,20 @@ class PolicyPlanner:
             policy.context_profile = "minimal"
             policy.skill_verbosity = "none"
             policy.reason = "用户想安静，留空间"
+            return self._finalize_policy(policy)
+        
+        # 情绪发泄 -> 先接住，不给建议
+        if intent.primary_intent == "vent":
+            policy.goal = "stabilize"
+            policy.target_state = "support_soft"
+            policy.allow_advice = False
+            policy.allow_humor = False
+            policy.max_questions = 0
+            policy.response_length = "short"
+            policy.context_profile = "standard"
+            # 学习类吐槽给短提示，其他给hint
+            policy.skill_verbosity = "short" if intent.task_category == "study" else "hint"
+            policy.reason = "用户在发泄情绪，先接住"
             return self._finalize_policy(policy)
         
         # 中等情绪 + 可推动 -> push_one_step
@@ -277,7 +317,17 @@ class PolicyPlanner:
             policy.max_actions = 1
             policy.response_length = "medium"
             policy.context_profile = "task_heavy"
-            policy.skill_verbosity = "card" if intent.action_receptivity > 0.6 else "short"
+            # 根据任务类别设置 skill_verbosity
+            if intent.task_category == "food":
+                policy.skill_verbosity = "hint"
+                policy.response_length = "short"
+            elif intent.task_category == "social":
+                policy.skill_verbosity = "hint"
+                policy.response_length = "short"
+            elif intent.task_category == "study":
+                policy.skill_verbosity = "short"
+            else:
+                policy.skill_verbosity = "card" if intent.action_receptivity > 0.6 else "short"
             policy.reason = "用户在做规划"
             return self._finalize_policy(policy)
         
