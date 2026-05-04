@@ -18,11 +18,13 @@ import json
 import os
 import random
 from dataclasses import dataclass, field
+from dataclasses import dataclass, field
 from typing import Any
 
-import openai
+from .skill_contracts import SkillInput, SkillOutput
 
 
+@dataclass
 @dataclass
 class LifeAdvice:
     """生活建议结果。"""
@@ -848,3 +850,141 @@ class LifeSkillsEngine:
             action_items=[],
             tools_used=[],
         )
+
+
+# === SkillOutput-based real skills (v2-first) ===
+
+def study_plan_skill(skill_input: SkillInput) -> SkillOutput:
+    """学习规划技能：考试/DDL/学习任务拆解。"""
+    text = skill_input.user_message
+    # 简单规则：检测关键词生成可执行计划
+    cards = [
+        {
+            "title": "现在先做这一小步",
+            "items": [
+                "把最急的任务写出来",
+                "选一个 25 分钟能开始的部分",
+                "做完后再决定要不要继续",
+            ],
+        }
+    ]
+    if "考试" in text or "复习" in text:
+        cards.append({
+            "title": "考试突击策略",
+            "items": [
+                "先抓老师划的重点/往年题",
+                "只做最可能考的一章",
+                "不懂的先标记，不要死磕",
+            ],
+        })
+    if "ddl" in text.lower() or "deadline" in text.lower() or "截止" in text:
+        cards.append({
+            "title": "DDL 急救",
+            "items": [
+                "先交一个 60 分版本",
+                "有框架比没完成强",
+                "交完再优化",
+            ],
+        })
+
+    return SkillOutput(
+        name="study_plan",
+        should_show=True,
+        summary_for_prompt=(
+            "用户可能处于学习/DDL压力中。回复时先降压，再给最小可执行计划。"
+            "不要一次列太多任务，优先给 1 个当前动作 + 2 个后续步骤。"
+        ),
+        user_visible_cards=cards,
+        debug={"source": "rule_based_v1"},
+    )
+
+
+def reply_advice_skill(skill_input: SkillInput) -> SkillOutput:
+    """社交回复建议技能。"""
+    return SkillOutput(
+        name="reply_advice",
+        should_show=True,
+        summary_for_prompt=(
+            "用户想处理社交回复。直接给 2-3 个可复制句子，"
+            "分别是：温和版、直接版、留余地版。"
+        ),
+        user_visible_cards=[
+            {
+                "title": "可以这样回",
+                "items": [
+                    "温和版：我刚刚可能没表达清楚，不是那个意思。",
+                    "直接版：这件事我有点不舒服，我们能不能重新说一下？",
+                    "留余地版：我先想一下，晚点再认真回你。",
+                ],
+            }
+        ],
+        debug={"source": "rule_based_v1"},
+    )
+
+
+def food_recommend_skill(skill_input: SkillInput) -> SkillOutput:
+    """饮食推荐技能。"""
+    text = skill_input.user_message
+    mood = "neutral"
+    if any(k in text for k in ["累", "烦", "丧", "emo"]):
+        mood = "sad"
+    time_of_day = "午餐"
+    if any(k in text for k in ["早", "早餐"]):
+        time_of_day = "早餐"
+    elif any(k in text for k in ["晚", "夜宵", "晚上"]):
+        time_of_day = "晚餐"
+
+    comfort_foods = ["麻辣香锅", "螺蛳粉", "炸鸡", "火锅", "奶茶"]
+    light_foods = ["粥", "沙拉", "汤面", "饭团"]
+    items = comfort_foods if mood == "sad" else light_foods + comfort_foods[:2]
+
+    return SkillOutput(
+        name="food_recommend",
+        should_show=True,
+        summary_for_prompt=(
+            "用户问吃什么。直接给 2-3 个具体选择，不要分类列举，"
+            "像朋友一样说‘我今天其实想吃炸鸡，但要克制’。"
+        ),
+        user_visible_cards=[
+            {
+                "title": f"{time_of_day}想吃点啥",
+                "items": items[:4],
+            }
+        ],
+        debug={"mood": mood, "time": time_of_day},
+    )
+
+
+def playlist_recommend_skill(skill_input: SkillInput) -> SkillOutput:
+    """歌单/情绪音乐推荐技能。"""
+    text = skill_input.user_message
+    mood = "chill"
+    if any(k in text for k in ["累", "困", "晚安", "睡"]):
+        mood = "sleep"
+    elif any(k in text for k in ["烦", "丧", "emo", "难过"]):
+        mood = "sad"
+    elif any(k in text for k in ["学", "专注", "写", "赶"]):
+        mood = "focus"
+
+    playlists = {
+        "sleep": ["白噪音/雨声", "Lo-fi  sleep beats", "钢琴轻音乐"],
+        "sad": ["后摇/治愈系", "陈奕迅/李宗盛", "日语抒情"],
+        "focus": ["Lo-fi study beats", "古典 concentratiion", "电子轻节奏"],
+        "chill": ["City Pop", "Indie 华语", "R&B 慢歌"],
+    }
+
+    return SkillOutput(
+        name="playlist_recommend",
+        should_show=True,
+        summary_for_prompt=(
+            "用户想要音乐推荐。直接给 2-3 个歌单/风格，不要分析情绪，"
+            "像朋友分享耳机一样自然。"
+        ),
+        user_visible_cards=[
+            {
+                "title": "试试这些",
+                "items": playlists.get(mood, playlists["chill"]),
+            }
+        ],
+        debug={"mood": mood},
+    )

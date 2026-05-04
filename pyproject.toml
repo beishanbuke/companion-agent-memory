@@ -1,9 +1,13 @@
 [project]
-name = "pipecat-quickstart"
-version = "0.1.0"
-description = "Quickstart example for building voice AI bots with Pipecat"
+name = "companion-agent-memory"
+version = "0.2.0"
+description = "A memory-aware companion agent prototype for undergraduate daily support"
 requires-python = ">=3.10"
 dependencies = [
+    "openai>=1.0.0",
+    "websockets>=12.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
     "pipecat-ai[webrtc,daily,silero,deepgram,openai,cartesia,runner]",
     "pipecat-ai-cli"
 ]

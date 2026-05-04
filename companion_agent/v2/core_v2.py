@@ -31,7 +31,12 @@ from .life_skills import LifeSkillsEngine, LifeAdvice
 from .response_judge import ResponseJudge, JudgeResult
 from .relationship_memory import RelationshipMemory, RelationshipProfile
 from .review_store import ReviewStore
-from .review_extractor import ReviewExtractor, ReviewSummary
+from .review_extractor import (
+    ReviewExtractor,
+    ReviewSummary,
+    ConversationTurn,
+    ThreadSnapshot,
+)
 
 # 兼容旧版组件
 from ..persona import SystemPersonaLayer
@@ -167,8 +172,11 @@ class CompanionAgentCoreV2:
         10. 关系学习
         """
         history = conversation_history or []
+        stage_timings: dict[str, float] = {}
+        t0 = time.perf_counter()
         
         # === Step 1: 意图分析（信号提取器）===
+        t = time.perf_counter()
         sid = session_id or self.session_id
         current_state_summary = self.state_tracker.get_state_summary(sid)
         intent = await self.intent_engine.analyze(
@@ -176,6 +184,7 @@ class CompanionAgentCoreV2:
             conversation_history=history,
             current_state=current_state_summary,
         )
+        stage_timings["intent"] = time.perf_counter() - t
         
         # === Step 2: 主线管理 ===
         # 检测话题切换
@@ -232,12 +241,14 @@ class CompanionAgentCoreV2:
             )
         
         # === Step 3: 状态更新（显式状态机）===
+        t = time.perf_counter()
         conv_state = self.state_tracker.update(
             intent_analysis=intent,
             user_message=user_message,
             assistant_reply="",  # 将在生成后更新
             session_id=sid,
         )
+        stage_timings["state"] = time.perf_counter() - t
         
         # === Step 4: 策略规划 ===
         relationship_profile = self.relationship_memory.get_profile(session_id=sid)
@@ -254,6 +265,7 @@ class CompanionAgentCoreV2:
             self.thread_manager.switch_to_thread(policy.main_thread_id, sid)
         
         # === Step 5: 记忆检索 ===
+        t = time.perf_counter()
         memory_context = TieredMemoryContext()
         if memory_enabled:
             memory_tiers = self._decide_memory_tiers(intent)
@@ -261,6 +273,9 @@ class CompanionAgentCoreV2:
                 query=user_message,
                 situation=intent.task_category if intent.task_category != "none" else "casual_chat",
             )
+        stage_timings["memory"] = time.perf_counter() - t
+
+        review_context_text = self._build_review_context(policy=policy, session_id=sid)
         
         # === Step 6: 工具执行 ===
         tool_results: list[ToolResult] = []
@@ -320,6 +335,8 @@ class CompanionAgentCoreV2:
         
         # 获取记忆文本
         memory_text = memory_context.to_prompt_section() if memory_context else ""
+        if review_context_text:
+            memory_text = "\n\n".join(part for part in [memory_text, review_context_text] if part)
         
         # 装配上下文块
         assembly_state = policy.target_state or conv_state.current_state
@@ -344,12 +361,20 @@ class CompanionAgentCoreV2:
         )
         
         # === Step 8: LLM生成回复 ===
+        t = time.perf_counter()
         assistant_reply = await self._llm_runtime.call("chat", messages)
         assistant_reply = self._sanitize_reply(assistant_reply)
+        stage_timings["llm"] = time.perf_counter() - t
         
         # === Step 9: 回复评审 ===
+        t = time.perf_counter()
         judge_result = None
-        if self.response_judge:
+        if self.response_judge and self._should_run_judge(
+            policy=policy,
+            intent=intent,
+            user_message=user_message,
+            tool_results=tool_results,
+        ):
             judge_result = await self.response_judge.judge(
                 user_message=user_message,
                 assistant_reply=assistant_reply,
@@ -358,6 +383,7 @@ class CompanionAgentCoreV2:
             )
             if judge_result and not judge_result.is_good and judge_result.improved_reply:
                 assistant_reply = judge_result.improved_reply
+        stage_timings["judge"] = time.perf_counter() - t
         
         # === Step 10: 关系学习 ===
         old_profile_summary = self.relationship_memory.get_summary(session_id=sid)
@@ -385,6 +411,7 @@ class CompanionAgentCoreV2:
         self._previous_intent = intent
         
         # 记忆更新策略（只决策，不写入）
+        t = time.perf_counter()
         memory_decision = MemoryDecision(
             action="ignore",
             reason="记忆已禁用或未触发",
@@ -393,7 +420,7 @@ class CompanionAgentCoreV2:
             privacy_level="public",
             suggested_tags=[],
         )
-        
+
         if memory_enabled:
             snapshot = self._get_memory_snapshot()
             memory_decision = await self.memory_policy.evaluate(
@@ -403,10 +430,12 @@ class CompanionAgentCoreV2:
             )
             if memory_decision.action in ("add", "update") and not memory_decision.requires_confirmation:
                 self._pending_memory_store = user_message
-        
+        stage_timings["memory_policy"] = time.perf_counter() - t
+
         # 安全检测
         safety_flag = self._check_safety(user_message, intent)
         
+        stage_timings["total"] = time.perf_counter() - t0
         # === Step 10b: 复盘摘要生成（当 goal 为 review_* 时）===
         review_summary = None
         if policy.goal.startswith("review_"):
@@ -414,19 +443,12 @@ class CompanionAgentCoreV2:
                 policy=policy,
                 intent=intent,
                 state=conv_state,
+                history=history,
                 user_message=user_message,
                 assistant_reply=assistant_reply,
                 sid=sid,
             )
-            # 把复盘摘要回写到线程 resume_capsule，让下次恢复能接上
-            self.apply_review_summary_to_threads(review_summary, session_id=sid)
-            # 保存到复盘存储层，支持连续日记/周报
-            self.review_store.save_review(
-                session_id=sid,
-                scope=review_summary.scope,
-                user_visible_text=review_summary.user_visible,
-                system_summary=review_summary.structured,
-            )
+            self._finalize_review_summary(review_summary=review_summary, session_id=sid)
         
         # 构建系统提示词摘要（调试用）
         system_prompt = "\n\n".join([b.content for b in context_blocks])
@@ -479,6 +501,7 @@ class CompanionAgentCoreV2:
                     "after": new_profile_summary,
                     "session_id": sid,
                 },
+                "stage_timings": {k: round(v, 3) for k, v in stage_timings.items()},
             },
         )
     
@@ -553,7 +576,7 @@ class CompanionAgentCoreV2:
         messages = []
         if result.system_prompt:
             messages.append({"role": "system", "content": result.system_prompt})
-        messages.extend(history[-10:])
+        messages.extend(history[-6:])  # Reduced for speed
         messages.append({"role": "user", "content": user_message})
         return messages
 
@@ -575,14 +598,18 @@ class CompanionAgentCoreV2:
         # 复用 generate_reply 的前 7 步逻辑
         history = conversation_history or []
         sid = session_id or self.session_id
+        stage_timings: dict[str, float] = {}
+        t0 = time.perf_counter()
 
         # === Steps 1-7: 意图分析、主线管理、状态更新、策略规划、记忆检索、工具执行、上下文装配 ===
+        t = time.perf_counter()
         current_state_summary = self.state_tracker.get_state_summary(sid)
         intent = await self.intent_engine.analyze(
             user_message=user_message,
             conversation_history=history,
             current_state=current_state_summary,
         )
+        stage_timings["intent"] = time.perf_counter() - t
 
         is_shift, new_topic = self.thread_manager.detect_topic_shift(
             current_intent=intent,
@@ -627,7 +654,9 @@ class CompanionAgentCoreV2:
             assistant_reply="",
             session_id=sid,
         )
+        stage_timings["state"] = time.perf_counter() - t
 
+        t = time.perf_counter()
         relationship_profile = self.relationship_memory.get_profile(session_id=sid)
         policy = self.policy_planner.plan(
             intent=intent,
@@ -640,12 +669,16 @@ class CompanionAgentCoreV2:
         if policy.pull_main_thread and policy.main_thread_id:
             self.thread_manager.switch_to_thread(policy.main_thread_id, sid)
 
+        t = time.perf_counter()
         memory_context = TieredMemoryContext()
         if memory_enabled:
             memory_context = await self.memory.retrieve_tiered(
                 query=user_message,
                 situation=intent.task_category if intent.task_category != "none" else "casual_chat",
             )
+        stage_timings["memory"] = time.perf_counter() - t
+
+        review_context_text = self._build_review_context(policy=policy, session_id=sid)
 
         tool_results: list[ToolResult] = []
         task_context = ""
@@ -700,6 +733,8 @@ class CompanionAgentCoreV2:
         )
 
         memory_text = memory_context.to_prompt_section() if memory_context else ""
+        if review_context_text:
+            memory_text = "\n\n".join(part for part in [memory_text, review_context_text] if part)
 
         assembly_state = policy.target_state or conv_state.current_state
         context_blocks = self.context_assembler.assemble(
@@ -722,6 +757,7 @@ class CompanionAgentCoreV2:
         )
 
         # === Step 8: 流式 LLM 生成 ===
+        t = time.perf_counter()
         assistant_reply = ""
         try:
             async for delta in self._llm_runtime.stream("chat", messages):
@@ -734,10 +770,17 @@ class CompanionAgentCoreV2:
             yield {"type": "delta", "delta": fallback_reply}
 
         assistant_reply = self._sanitize_reply(assistant_reply)
+        stage_timings["llm"] = time.perf_counter() - t
 
         # === Step 9: 回复评审 ===
+        t = time.perf_counter()
         judge_result = None
-        if self.response_judge:
+        if self.response_judge and self._should_run_judge(
+            policy=policy,
+            intent=intent,
+            user_message=user_message,
+            tool_results=tool_results,
+        ):
             judge_result = await self.response_judge.judge(
                 user_message=user_message,
                 assistant_reply=assistant_reply,
@@ -746,6 +789,7 @@ class CompanionAgentCoreV2:
             )
             if judge_result and not judge_result.is_good and judge_result.improved_reply:
                 assistant_reply = judge_result.improved_reply
+        stage_timings["judge"] = time.perf_counter() - t
 
         # === Step 10: 关系学习 ===
         old_profile_summary = self.relationship_memory.get_summary(session_id=sid)
@@ -768,6 +812,7 @@ class CompanionAgentCoreV2:
         self._previous_intent = intent
 
         # 记忆更新策略
+        t = time.perf_counter()
         memory_decision = MemoryDecision(
             action="ignore",
             reason="记忆已禁用或未触发",
@@ -786,9 +831,25 @@ class CompanionAgentCoreV2:
             )
             if memory_decision.action in ("add", "update") and not memory_decision.requires_confirmation:
                 self._pending_memory_store = user_message
+        stage_timings["memory_policy"] = time.perf_counter() - t
 
         safety_flag = self._check_safety(user_message, intent)
         system_prompt = "\n\n".join([b.content for b in context_blocks])
+        
+        stage_timings["total"] = time.perf_counter() - t0
+
+        review_summary = None
+        if policy.goal.startswith("review_"):
+            review_summary = self._generate_review_summary(
+                policy=policy,
+                intent=intent,
+                state=conv_state,
+                history=history,
+                user_message=user_message,
+                assistant_reply=assistant_reply,
+                sid=sid,
+            )
+            self._finalize_review_summary(review_summary=review_summary, session_id=sid)
 
         result = CompanionResultV2(
             reply=assistant_reply,
@@ -802,6 +863,7 @@ class CompanionAgentCoreV2:
             memory_updated=False,
             tool_results=tool_results,
             judge_result=judge_result,
+            review_summary=review_summary,
             safety_flag=safety_flag,
             system_prompt=system_prompt[:500] + "..." if len(system_prompt) > 500 else system_prompt,
             debug_info={
@@ -837,6 +899,7 @@ class CompanionAgentCoreV2:
                     "after": new_profile_summary,
                     "session_id": sid,
                 },
+                "stage_timings": {k: round(v, 3) for k, v in stage_timings.items()},
             },
         )
 
@@ -973,6 +1036,38 @@ class CompanionAgentCoreV2:
         lines = text.split("\n")
         lines = [line for line in lines if line.strip()]
         return "\n".join(lines)
+
+    def _should_run_judge(
+        self,
+        policy: TurnPolicy,
+        intent: IntentAnalysis,
+        user_message: str,
+        tool_results: list[ToolResult],
+    ) -> bool:
+        """轻场景 fast path：不是每轮都跑评审。"""
+        # 短寒暄不评审
+        if len(user_message.strip()) <= 8:
+            return False
+
+        # 普通闲聊/互怼/安静模式不评审
+        if intent.primary_intent in {"casual", "banter", "quiet"}:
+            return False
+
+        # 情绪支持/安全/建议/有工具结果/长回复才评审
+        if intent.primary_intent in {"emotional_support", "safety", "advice"}:
+            return True
+
+        # 已有工具结果时评审
+        if tool_results:
+            return True
+
+        # 轻场景默认跳过
+        if policy.goal == "stay_light" and not tool_results:
+            if len(user_message) < 80 and intent.emotional_intensity < 0.55:
+                return False
+        if policy.goal == "resume_main_thread" and len(user_message) < 40 and not tool_results:
+            return False
+        return True
     
     def _decide_memory_tiers(self, intent: IntentAnalysis) -> list[str]:
         """根据意图决定检索哪些记忆层级。"""
@@ -1013,28 +1108,99 @@ class CompanionAgentCoreV2:
         t = user_message.lower()
         return any(kw in t for kw in sensitive_keywords)
 
+    def _build_review_context(self, policy: TurnPolicy, session_id: str) -> str:
+        """为复盘/主线恢复场景注入最近复盘摘要。"""
+        sections: list[str] = []
+
+        if policy.goal == "resume_main_thread":
+            latest = self.review_store.get_latest_review(session_id)
+            if latest:
+                summary = latest.system_summary or {}
+                actions = summary.get("next_actions", [])[:2]
+                blockers = summary.get("blockers", [])[:2]
+                sections.append("【最近复盘】")
+                sections.append(f"范围：{latest.scope}")
+                if summary.get("dominant_emotion"):
+                    sections.append(f"主导情绪：{summary['dominant_emotion']}")
+                if blockers:
+                    sections.append(f"最近卡点：{'；'.join(blockers)}")
+                if actions:
+                    sections.append(f"上次留下的下一步：{'；'.join(actions)}")
+
+        if policy.goal == "review_week":
+            from datetime import datetime, timedelta
+
+            today = datetime.now()
+            week_start = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d")
+            weekly = self.review_store.get_weekly_summary(session_id, week_start)
+            if weekly.get("has_data"):
+                sections.append("【本周复盘参考】")
+                if weekly.get("dominant_emotion"):
+                    sections.append(f"本周主导情绪：{weekly['dominant_emotion']}")
+                if weekly.get("top_blockers"):
+                    sections.append(f"反复卡点：{'；'.join(weekly['top_blockers'][:3])}")
+                if weekly.get("pending_actions"):
+                    sections.append(f"待续动作：{'；'.join(weekly['pending_actions'][:2])}")
+
+        return "\n".join(sections)
+
     def _generate_review_summary(
         self,
         policy: TurnPolicy,
         intent: IntentAnalysis,
         state: ConversationState,
+        history: list[dict[str, str]],
         user_message: str,
         assistant_reply: str,
         sid: str,
     ) -> ReviewSummary:
         """生成复盘结构化摘要（用户可见 + 系统内部）。
         
-        从当前对话状态、主线、意图中自动抽取，不额外调用 LLM。
+        优先走 ReviewExtractor 的多轮抽取，失败时回退到轻规则摘要。
         """
         scope = policy.goal.replace("review_", "")
+        turns = self._build_review_turns(
+            history=history,
+            user_message=user_message,
+            assistant_reply=assistant_reply,
+            intent=intent,
+        )
+        active_snapshot = self._thread_summary_to_snapshot(self.thread_manager.get_active_thread_summary(sid))
+        background_snapshots = [
+            snapshot
+            for snapshot in (
+                self._thread_summary_to_snapshot(summary)
+                for summary in self.thread_manager.get_background_summaries(sid)
+            )
+            if snapshot is not None
+        ]
+        recent_reviews = [
+            record.system_summary
+            for record in self.review_store.get_reviews(session_id=sid, limit=5)
+            if record.system_summary
+        ]
+
+        try:
+            extracted = self.review_extractor.extract(
+                turns=turns,
+                active_thread=active_snapshot,
+                background_threads=background_snapshots,
+                current_state=self.state_tracker.get_state_summary(sid),
+                scope=scope,
+                recent_reviews=recent_reviews,
+            )
+            if extracted and extracted.structured:
+                if not extracted.user_visible:
+                    extracted.user_visible = assistant_reply
+                return extracted
+        except Exception:
+            pass
         
         # 提取关键信息
         active_thread = self.thread_manager.get_active_thread_summary(sid)
-        background_threads = self.thread_manager.get_background_summaries(sid)
         
         # 情绪趋势
         emotion_history = state.emotion_history[-5:] if state.emotion_history else []
-        emotions = [e[0] for e in emotion_history]
         intensities = [e[1] for e in emotion_history]
         avg_intensity = round(sum(intensities) / len(intensities), 2) if intensities else 0.0
         
@@ -1110,6 +1276,68 @@ class CompanionAgentCoreV2:
             scope=scope,
             user_visible=assistant_reply,
             structured=structured,
+        )
+
+    def _finalize_review_summary(
+        self,
+        review_summary: ReviewSummary | None,
+        session_id: str = "",
+    ) -> None:
+        """统一处理复盘摘要的线程回写和持久化。"""
+        if not review_summary:
+            return
+        sid = session_id or self.session_id
+        self.apply_review_summary_to_threads(review_summary, session_id=sid)
+        self.review_store.save_review(
+            session_id=sid,
+            scope=review_summary.scope,
+            user_visible_text=review_summary.user_visible,
+            system_summary=review_summary.structured,
+        )
+
+    def _build_review_turns(
+        self,
+        history: list[dict[str, str]],
+        user_message: str,
+        assistant_reply: str,
+        intent: IntentAnalysis,
+    ) -> list[ConversationTurn]:
+        """把最近对话转换成 ReviewExtractor 可消费的轮次。"""
+        turns: list[ConversationTurn] = []
+        for msg in history[-6:]:
+            turns.append(
+                ConversationTurn(
+                    role=msg.get("role", "user"),
+                    content=msg.get("content", ""),
+                    intent={},
+                )
+            )
+        turns.append(
+            ConversationTurn(
+                role="user",
+                content=user_message,
+                intent={
+                    "emotional_intensity": intent.emotional_intensity,
+                    "task_category": intent.task_category,
+                    "emotional_state": intent.emotional_state,
+                },
+            )
+        )
+        turns.append(ConversationTurn(role="assistant", content=assistant_reply, intent={}))
+        return turns
+
+    def _thread_summary_to_snapshot(self, summary: dict[str, Any]) -> ThreadSnapshot | None:
+        """把线程摘要转换成复盘抽取器使用的快照结构。"""
+        if not summary:
+            return None
+        return ThreadSnapshot(
+            id=summary.get("id", ""),
+            name=summary.get("name", ""),
+            thread_type=summary.get("type", ""),
+            resume_tokens=summary.get("resume_tokens", ""),
+            resume_capsule=summary.get("resume_capsule", {}) or {},
+            urgency_score=float(summary.get("urgency", 0.0)),
+            emotion_score=float(summary.get("emotion", 0.0)),
         )
 
     def apply_review_summary_to_threads(

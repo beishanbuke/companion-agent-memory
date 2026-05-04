@@ -37,14 +37,46 @@ class ResponseContext:
 class ResponsePolicy:
     """Manages response formatting and safety checks."""
 
-    # Safety disclaimer for sensitive situations
-    SAFETY_DISCLAIMER = (
-        "\n\n---"
-        "\n如果你正在经历情绪危机，请寻求专业帮助："
-        "\n- 北京心理危机研究与干预中心：010-82951332"
-        "\n- 全国24小时心理援助热线：400-161-9995"
-        "\n- 紧急情况下请拨打 120 或 110"
-    )
+    # Safety levels for campus/China context
+    SAFETY_LEVELS = {
+        "low": "普通低落",
+        "medium": "明显痛苦但无自伤意图",
+        "high": "出现自伤/自杀/伤害他人表达",
+    }
+
+    # Safety disclaimers by level
+    SAFETY_DISCLAIMERS = {
+        "low": "",
+        "medium": (
+            "\n\n---"
+            "\n如果你最近一直很难受，可以考虑和学校心理中心聊聊，"
+            "或者找身边信任的人说说。"
+        ),
+        "high": (
+            "\n\n---"
+            "\n这句话我会认真对待。现在先别一个人扛着，"
+            "尽快联系身边能马上找到你的人，比如室友、同学、家人或学校心理中心。"
+            "如果你已经有伤害自己的计划，请立刻拨打当地紧急电话，"
+            "或者让身边的人陪你去急诊/校医院。"
+            "\n- 北京心理危机研究与干预中心：010-82951332"
+            "\n- 全国24小时心理援助热线：400-161-9995"
+            "\n- 紧急情况下请拨打 120 或 110"
+        ),
+    }
+
+    # Crisis keywords for high-level detection
+    CRISIS_KEYWORDS = [
+        "想死", "自杀", "自残", "不想活", "活不下去",
+        "杀", "伤害别人", "报复", "同归于尽",
+        "suicide", "kill myself", "self-harm", "want to die",
+    ]
+
+    # Medium risk keywords
+    MEDIUM_RISK_KEYWORDS = [
+        "抑郁", "焦虑", "崩溃", "绝望", "很痛苦", "很难受",
+        "睡不着", "吃不下", "无法集中", "什么都不想做",
+        "depressed", "anxiety", "breaking down", "hopeless",
+    ]
 
     # Response style modifiers
     STYLE_MODIFIERS = {
@@ -101,6 +133,20 @@ class ResponsePolicy:
 
         return "\n".join(parts) if parts else ""
 
+    def detect_safety_level(self, user_message: str) -> str:
+        """Detect safety level from user message (low/medium/high)."""
+        msg_lower = user_message.lower()
+
+        # High: crisis keywords
+        if any(kw in msg_lower for kw in self.CRISIS_KEYWORDS):
+            return "high"
+
+        # Medium: distress keywords
+        if any(kw in msg_lower for kw in self.MEDIUM_RISK_KEYWORDS):
+            return "medium"
+
+        return "low"
+
     def format_response(
         self,
         raw_response: str,
@@ -108,24 +154,31 @@ class ResponsePolicy:
     ) -> str:
         """Format the final response.
 
-        Adds safety disclaimers, manages length, etc.
+        Adds safety disclaimers based on level, manages length, etc.
         """
         response = raw_response.strip()
 
-        # Add safety disclaimer for sensitive situations
-        if context.safety_flag:
-            response = self._add_safety_disclaimer(response)
+        # Determine safety level from user message
+        safety_level = self.detect_safety_level(context.user_message)
+
+        # Add safety disclaimer only for medium/high risk
+        if safety_level in ("medium", "high"):
+            response = self._add_safety_disclaimer(response, safety_level)
 
         # Enforce length limit (soft)
         response = self._enforce_length(response, max_sentences=8)
 
         return response
 
-    def _add_safety_disclaimer(self, response: str) -> str:
-        """Add safety disclaimer if not already present."""
-        if "心理危机" in response or "专业帮助" in response:
+    def _add_safety_disclaimer(self, response: str, level: str = "medium") -> str:
+        """Add safety disclaimer appropriate to risk level if not already present."""
+        disclaimer = self.SAFETY_DISCLAIMERS.get(level, "")
+        if not disclaimer:
             return response
-        return response + self.SAFETY_DISCLAIMER
+        # Avoid duplicating if already present
+        if "心理中心" in response or "紧急电话" in response or "心理援助" in response:
+            return response
+        return response + disclaimer
 
     def _enforce_length(self, response: str, max_sentences: int = 8) -> str:
         """Soft length enforcement - only warns if too long."""

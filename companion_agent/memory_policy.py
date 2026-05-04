@@ -46,11 +46,19 @@ class MemoryUpdatePolicy:
         "changed to", "updated to", "now is", "switched to",
     ]
 
-    # Low-value patterns (usually not worth remembering)
-    LOW_VALUE_PATTERNS = [
-        "吃了", "喝了", "走了", "来了", "看了", "听了",
-        "今天天气", "早安", "晚安", "你好", "在吗",
+    # Patterns that should NEVER be stored (short, greeting, low-info)
+    NEVER_STORE_PATTERNS = [
+        "你好", "在吗", "哈喽", "谢谢", "好的", "嗯嗯", "哈哈",
+        "我累了", "好烦", "无语", "困了", "早安", "晚安", "再见",
         "how are you", "what's up", "good morning", "good night",
+        "hi", "hello", "hey", "ok", "okay", "thanks", "bye",
+    ]
+
+    # Sensitive mental health / personal struggle patterns that need confirmation
+    SENSITIVE_MENTAL_PATTERNS = [
+        "睡不着", "抑郁", "焦虑", "崩溃", "想死", "自杀", "自残",
+        "不想活", "活不下去", "很难受", "很痛苦", "绝望",
+        "家里关系差", "和父母吵架", "失恋", "被孤立",
     ]
 
     # Sensitive patterns that need confirmation
@@ -78,11 +86,24 @@ class MemoryUpdatePolicy:
         user_message: str,
         current_memory_snapshot: dict[str, Any],
         situation: str = "casual_chat",
+        use_llm: bool = False,
     ) -> MemoryDecision:
         """Evaluate whether to update memory.
 
-        First applies fast rules, then falls back to LLM for ambiguous cases.
+        Uses fast rule-based evaluation by default. LLM is disabled for speed.
+        Set use_llm=True if you need nuanced decisions.
         """
+        # Fast path: never store short greetings / low-info messages
+        if self._should_never_store(user_message):
+            return MemoryDecision(
+                action="ignore",
+                reason="短句/寒暄/低信息密度内容，不写入长期记忆",
+                confidence=0.95,
+                requires_confirmation=False,
+                privacy_level="public",
+                suggested_tags=[],
+            )
+
         # Fast path: explicit delete commands
         if self._is_explicit_delete(user_message):
             return MemoryDecision(
@@ -105,14 +126,28 @@ class MemoryUpdatePolicy:
                 suggested_tags=[],
             )
 
+        # Check sensitive mental health / personal struggle patterns
+        is_sensitive_mental = self._check_sensitive_mental(user_message)
+
         # Fast path: sensitive info
         is_sensitive, privacy_level = self._check_sensitive(user_message)
 
-        # If we have an LLM client, use it for nuanced decisions
-        if self._client and len(user_message) > 10:
+        # Sensitive mental health content requires confirmation before storing
+        if is_sensitive_mental:
+            return MemoryDecision(
+                action="pending",
+                reason="涉及个人心理状态/困境，需用户确认后再存入长期记忆",
+                confidence=0.85,
+                requires_confirmation=True,
+                privacy_level="sensitive",
+                suggested_tags=["mental_health", "sensitive"],
+            )
+
+        # LLM fallback only if explicitly enabled
+        if use_llm and self._client and len(user_message) > 10:
             return await self._llm_evaluate(user_message, current_memory_snapshot, situation, privacy_level)
 
-        # Rule-based fallback
+        # Rule-based fallback (fast, no extra LLM call)
         return self._rule_based_evaluate(user_message, privacy_level)
 
     def _is_explicit_delete(self, message: str) -> bool:
@@ -120,16 +155,38 @@ class MemoryUpdatePolicy:
         msg_lower = message.lower()
         return any(pattern in msg_lower for pattern in self.DELETE_PATTERNS)
 
-    def _is_low_value(self, message: str) -> bool:
-        """Check if message is low-value trivia."""
-        # Very short messages
-        if len(message) < 15:
+    def _should_never_store(self, message: str) -> bool:
+        """Check if message should never be stored (short greetings, trivial)."""
+        s = message.strip()
+        # Very short messages (<=6 chars)
+        if len(s) <= 6:
             return True
+        # Exact match against never-store patterns
+        if s in self.NEVER_STORE_PATTERNS:
+            return True
+        # One-off emotional venting (very short + emotional words)
+        if len(s) <= 12:
+            venting_markers = ["累了", "烦", "困", "无语", "崩溃", "emo"]
+            if any(m in s for m in venting_markers):
+                return True
+        return False
+
+    def _check_sensitive_mental(self, message: str) -> bool:
+        """Check if message contains sensitive mental health / personal struggle content."""
+        msg_lower = message.lower()
+        return any(pattern in msg_lower for pattern in self.SENSITIVE_MENTAL_PATTERNS)
+
+    def _is_low_value(self, message: str) -> bool:
+        """Check if message is low-value trivia (but not as strict as never-store)."""
+        # Already handled by _should_never_store for very short messages
+        if len(message) < 15:
+            return False  # Let _should_never_store handle these
 
         msg_lower = message.lower()
 
-        # Greetings and small talk
-        if any(pattern in msg_lower for pattern in self.LOW_VALUE_PATTERNS):
+        # Weather, routine small talk
+        routine_markers = ["今天天气", "吃了", "喝了", "走了", "来了", "看了", "听了"]
+        if any(pattern in msg_lower for pattern in routine_markers):
             # But allow if it contains preference indicators
             preference_markers = ["喜欢", "讨厌", "不爱", "prefer", "like", "dislike", "hate"]
             if not any(m in msg_lower for m in preference_markers):

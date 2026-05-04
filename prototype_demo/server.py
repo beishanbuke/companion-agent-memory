@@ -6,6 +6,10 @@ Run:
 
 from __future__ import annotations
 
+# 加载 .env 文件中的环境变量
+from dotenv import load_dotenv
+load_dotenv()
+
 import asyncio
 import difflib
 import io
@@ -1036,6 +1040,7 @@ def call_chat_completion(messages: list[dict[str, str]], model_id: str = "") -> 
     payload = {
         "model": model,
         "temperature": _get_model_temperature(model_id),
+        "max_tokens": 500,
         "messages": messages,
     }
     body = json.dumps(payload).encode("utf-8")
@@ -1082,6 +1087,7 @@ def iter_chat_completion_chunks(messages: list[dict[str, str]], model_id: str = 
     payload = {
         "model": model,
         "temperature": _get_model_temperature(model_id),
+        "max_tokens": 500,
         "messages": messages,
         "stream": True,
     }
@@ -1188,45 +1194,43 @@ def count_retrieved_items(memory_text: str) -> int:
 
 
 def should_store_user_message(user_message: str) -> bool:
+    """Fast filter: only store messages that contain real user info."""
     text = user_message.strip().lower()
+
+    # Skip very short messages
+    if len(text) < 15:
+        return False
+
+    # Skip greetings and small talk
+    low_value_patterns = [
+        r"^你好", r"^在吗", r"^hi", r"^hello", r"^hey",
+        r"^早安", r"^晚安", r"^谢谢", r"^哈哈", r"^好的",
+        r"^ok", r"^okay", r"^嗯", r"^哦", r"^啊",
+    ]
+    if any(re.search(pattern, text) for pattern in low_value_patterns):
+        return False
 
     # Never store memory probe queries
     memory_probe_patterns = (
-        r"^你还记得",
-        r"^你记得",
-        r"^还记得我",
-        r"^我叫什么",
-        r"^我住哪",
-        r"^我住哪里",
-        r"^我喜欢什么",
-        r"^do you remember",
-        r"^what do you remember",
-        r"^can you remember",
-        r"^what is my name",
-        r"^where do i live",
+        r"^你还记得", r"^你记得", r"^还记得我",
+        r"^我叫什么", r"^我住哪", r"^我住哪里", r"^我喜欢什么",
+        r"^do you remember", r"^what do you remember",
+        r"^can you remember", r"^what is my name", r"^where do i live",
     )
     if any(re.search(pattern, text) for pattern in memory_probe_patterns):
         return False
 
     # Only store stable identity, preferences, style feedback, and long-term patterns
     stable_patterns = [
-        r"我叫",
-        r"我是",
-        r"我住在",
-        r"我喜欢",
-        r"我不喜欢",
-        r"我讨厌",
-        r"我习惯",
-        r"我经常",
-        r"我一般",
-        r"我希望你",
-        r"你以后",
-        r"以后回复",
-        r"不要.*说教",
-        r"别.*长篇",
-        r"我更喜欢",
-        r"我的项目",
-        r"我最近在做",
+        r"我叫", r"我是", r"我住在",
+        r"我喜欢", r"我不喜欢", r"我讨厌",
+        r"我习惯", r"我经常", r"我一般",
+        r"我希望你", r"你以后", r"以后回复",
+        r"不要.*说教", r"别.*长篇",
+        r"我更喜欢", r"我的项目", r"我最近在做",
+        r"我的目标", r"我打算", r"我计划",
+        r"我想成为", r"我希望", r"我想要",
+        r"我生日", r"我年龄", r"我专业",
     ]
 
     return any(re.search(pattern, text) for pattern in stable_patterns)
@@ -1461,7 +1465,7 @@ class DemoSession:
         memory_enabled: bool,
         context_engine_v2: bool = False,
         debug: bool = False,
-        use_v2_brain: bool = False,
+        use_v2_brain: bool = True,
     ) -> dict[str, Any]:
         before_snapshot = self.memory.snapshot()
         active_card = self._active_card()
@@ -1542,7 +1546,7 @@ class DemoSession:
                     "scope": v2_result.review_summary.scope if v2_result.review_summary else "",
                     "structured": v2_result.review_summary.structured if v2_result.review_summary else {},
                 } if v2_result.review_summary else None,
-                "debug_info": v2_result.debug_info,
+                "debug": v2_result.debug_info,
             }
 
         if context_engine_v2:
@@ -1601,13 +1605,14 @@ class DemoSession:
             self.short_history.append({"role": "user", "content": user_message})
             self.short_history.append({"role": "assistant", "content": assistant_reply})
 
-            # Memory update
+            # Memory update (async, non-blocking)
             after_snapshot = self.memory.snapshot()
             updates: list[dict[str, Any]] = []
             if memory_enabled and should_store_user_message(user_message):
-                await self.memory.store("user", user_message)
-                after_snapshot = self.memory.snapshot()
-                updates = diff_snapshots(before_snapshot, after_snapshot)
+                # Fire-and-forget: store memory without blocking reply
+                asyncio.create_task(self.memory.store("user", user_message))
+                # Don't wait for snapshot diff; return empty updates for speed
+                updates = []
 
             # Update instance state for /api/state endpoint
             self.last_updates = updates
@@ -1740,14 +1745,13 @@ class DemoSession:
         self.short_history.append({"role": "user", "content": user_message})
         self.short_history.append({"role": "assistant", "content": assistant_reply})
 
-        # Memory update (using companion core's decision)
+        # Memory update (async, non-blocking)
         after_snapshot = before_snapshot
         updates = []
         if memory_enabled and companion_result.memory_decision.action in ("add", "update"):
             if not companion_result.memory_decision.requires_confirmation:
-                await self.memory.store("user", user_message)
-                after_snapshot = self.memory.snapshot()
-                updates = diff_snapshots(before_snapshot, after_snapshot)
+                # Fire-and-forget: store memory without blocking reply
+                asyncio.create_task(self.memory.store("user", user_message))
             else:
                 # Mark as pending confirmation
                 updates.append({
@@ -1797,7 +1801,7 @@ class DemoSession:
         memory_enabled: bool,
         context_engine_v2: bool = False,
         debug: bool = False,
-        use_v2_brain: bool = False,
+        use_v2_brain: bool = True,
     ):
         before_snapshot = self.memory.snapshot()
         active_card = self._active_card()
@@ -1884,7 +1888,7 @@ class DemoSession:
                         "companion_enabled": True,
                         "v2_brain": True,
                     },
-                    "debug_info": v2_result.debug_info if v2_result else {},
+                    "debug": v2_result.debug_info if v2_result else {},
                 },
             }
             return
@@ -1952,13 +1956,17 @@ class DemoSession:
             self.short_history.append({"role": "user", "content": user_message})
             self.short_history.append({"role": "assistant", "content": assistant_reply})
 
-            # Memory update
+            # Memory update (non-blocking in sync generator)
             after_snapshot = self.memory.snapshot()
             updates = []
             if memory_enabled and should_store_user_message(user_message):
-                asyncio.run(self.memory.store("user", user_message))
-                after_snapshot = self.memory.snapshot()
-                updates = diff_snapshots(before_snapshot, after_snapshot)
+                # Schedule async store without blocking (fire-and-forget)
+                try:
+                    loop = asyncio.get_running_loop()
+                    asyncio.run_coroutine_threadsafe(self.memory.store("user", user_message), loop)
+                except RuntimeError:
+                    # No event loop running, skip background store
+                    pass
 
             # Update instance state for /api/state endpoint
             self.last_updates = updates
@@ -2095,14 +2103,18 @@ class DemoSession:
         self.short_history.append({"role": "user", "content": user_message})
         self.short_history.append({"role": "assistant", "content": assistant_reply})
 
-        # Memory update (using companion core's decision)
+        # Memory update (non-blocking in sync generator)
         after_snapshot = before_snapshot
         updates = []
         if memory_enabled and companion_result.memory_decision.action in ("add", "update"):
             if not companion_result.memory_decision.requires_confirmation:
-                asyncio.run(self.memory.store("user", user_message))
-                after_snapshot = self.memory.snapshot()
-                updates = diff_snapshots(before_snapshot, after_snapshot)
+                # Schedule async store without blocking (fire-and-forget)
+                try:
+                    loop = asyncio.get_running_loop()
+                    asyncio.run_coroutine_threadsafe(self.memory.store("user", user_message), loop)
+                except RuntimeError:
+                    # No event loop running, skip background store
+                    pass
             else:
                 updates.append({
                     "change_type": "pending",
@@ -2426,7 +2438,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 message = str(body.get("message", "")).strip()
                 memory_enabled = bool(body.get("memory_enabled", True))
                 context_engine_v2 = bool(body.get("context_engine_v2", False))
-                use_v2_brain = bool(body.get("use_v2_brain", False))
+                use_v2_brain = bool(body.get("use_v2_brain", True))
                 debug = bool(body.get("debug", False))
                 if not message:
                     self._send_json({"error": "Message is required"}, status=HTTPStatus.BAD_REQUEST)
@@ -2521,7 +2533,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 message = str(body.get("message", "")).strip()
                 memory_enabled = bool(body.get("memory_enabled", True))
                 context_engine_v2 = bool(body.get("context_engine_v2", False))
-                use_v2_brain = bool(body.get("use_v2_brain", False))
+                use_v2_brain = bool(body.get("use_v2_brain", True))
                 debug = bool(body.get("debug", False))
                 if not message:
                     self._send_json({"error": "Message is required"}, status=HTTPStatus.BAD_REQUEST)

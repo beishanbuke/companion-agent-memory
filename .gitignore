@@ -44,6 +44,8 @@ memory_store.json
 prototype_memory_store.json
 prototype_character_cards.json
 long_term_memory_store.json
+AGENTS.md
+AGENTS.local.md
 
 # Audio files
 *.wav

@@ -2089,6 +2089,34 @@ function renderContextTrace(debug) {
     </div>
   `;
 
+  // === Step 6: Stage Timings (v2 brain) ===
+  const stageTimings = debug.stage_timings || {};
+  if (Object.keys(stageTimings).length > 0) {
+    const timingOrder = ["intent", "state", "memory", "skills", "llm", "judge", "total"];
+    const timingLabels = {
+      intent: "意图理解",
+      state: "状态跟踪",
+      memory: "记忆检索",
+      skills: "技能调用",
+      llm: "模型生成",
+      judge: "回复评审",
+      total: "总计",
+    };
+    html += `
+      <div class="trace-section">
+        <div class="trace-section-title">阶段耗时</div>
+    `;
+    for (const key of timingOrder) {
+      const val = stageTimings[key];
+      if (val !== undefined) {
+        const label = timingLabels[key] || key;
+        const displayVal = val === "skipped" ? "已跳过" : `${val.toFixed(2)}s`;
+        html += `<div class="trace-stat"><strong>${label}:</strong> ${displayVal}</div>`;
+      }
+    }
+    html += `</div>`;
+  }
+
   body.innerHTML = html;
 }
 

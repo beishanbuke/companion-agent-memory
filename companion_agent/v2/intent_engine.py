@@ -46,6 +46,51 @@ class IntentAnalysis:
     raw_analysis: str = ""
 
 
+def cheap_intent_fast_path(message: str) -> dict | None:
+    """超轻量规则意图识别：常见寒暄/安全场景不走 LLM，降低延迟。"""
+    text = message.strip().lower()
+
+    # 极短寒暄
+    if len(text) <= 3 and text in {"你好", "hi", "hello", "在吗", "哈喽", "在", "嗯", "哦"}:
+        return {
+            "primary_intent": "casual",
+            "intent_confidence": 0.95,
+            "emotional_state": "neutral",
+            "emotional_intensity": 0.1,
+            "emotional_context": "简短问候",
+            "implicit_needs": [],
+            "conversation_rhythm": "light_chat",
+            "task_category": "none",
+            "task_urgency": 0.0,
+            "action_receptivity": 0.2,
+            "topic_shift_type": "none",
+            "pressure_signal": 0.0,
+            "thread_candidates": [],
+            "clarification_confidence": 0.0,
+        }
+
+    # 安全危机关键词
+    if any(k in text for k in ["想死", "自杀", "自残", "不想活", "活不下去", "死了算了"]):
+        return {
+            "primary_intent": "safety",
+            "intent_confidence": 1.0,
+            "emotional_state": "crisis",
+            "emotional_intensity": 1.0,
+            "emotional_context": "用户表达了自伤或自杀意图，需要立即响应",
+            "implicit_needs": ["crisis_support", "真人介入"],
+            "conversation_rhythm": "serious",
+            "task_category": "safety",
+            "task_urgency": 1.0,
+            "action_receptivity": 0.9,
+            "topic_shift_type": "none",
+            "pressure_signal": 1.0,
+            "thread_candidates": ["危机干预"],
+            "clarification_confidence": 0.0,
+        }
+
+    return None
+
+
 class IntentEngine:
     """LLM-based intent understanding engine (Unified Runtime)."""
     
@@ -58,15 +103,29 @@ class IntentEngine:
         conversation_history: list[dict[str, str]] | None = None,
         current_state: dict[str, Any] | None = None,
     ) -> IntentAnalysis:
-        """分析用户消息的真实意图。"""
+        """分析用户消息的真实意图。
         
-        if len(user_message.strip()) <= 2:
-            return self._fallback_analysis(user_message)
+        Fast path: 常见闲聊/推荐场景直接规则匹配，不走 LLM，降低延迟。
+        """
+        msg = user_message.strip()
+        if len(msg) <= 2:
+            return self._fallback_analysis(msg)
         
+        # === Ultra Fast Path: 极短寒暄/安全危机 ===
+        fast = cheap_intent_fast_path(msg)
+        if fast is not None:
+            return IntentAnalysis(**fast)
+        
+        # === Fast Path: 闲聊/推荐类场景规则匹配 ===
+        fast_result = self._fast_path_analysis(msg)
+        if fast_result is not None:
+            return fast_result
+        
+        # 复杂场景走 LLM
         try:
-            return await self._llm_analyze(user_message, conversation_history, current_state)
+            return await self._llm_analyze(msg, conversation_history, current_state)
         except Exception:
-            return self._fallback_analysis(user_message)
+            return self._fallback_analysis(msg)
     
     def _fallback_analysis(self, message: str) -> IntentAnalysis:
         """轻规则兜底。"""
