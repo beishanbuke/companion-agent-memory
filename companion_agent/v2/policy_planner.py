@@ -133,9 +133,15 @@ class PolicyPlanner:
                     if thread.thread_type == "light_chat":
                         continue
                     thread_keywords = thread.name + " " + thread.thread_type + " " + thread.resume_tokens
-                    if any(kw in thread_keywords and kw in msg for kw in ["论文", "考试", "ddl", "工作", "复习"]):
+                    if any(kw in thread_keywords and kw in msg for kw in ["论文", "考试", "ddl", "工作", "复习", "作业"]):
                         target_id = thread.id
                         break
+                # Fallback: if still no match but user explicitly asks to continue, use first non-light_chat thread
+                if not target_id:
+                    for thread in session.background_threads:
+                        if thread.thread_type != "light_chat":
+                            target_id = thread.id
+                            break
         
         if user_asks_review and target_id:
             # 用户明确要求复盘，可以 active

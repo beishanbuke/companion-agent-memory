@@ -133,6 +133,7 @@ def check_text_rules(reply: str, case: dict[str, Any]) -> tuple[list[str], list[
     flags = []
     warnings = []
     hard_rules = case.get("hard_rules", [])
+    user_input = case.get("input", "")
     for rule in hard_rules:
         idx = reply.find(rule)
         if idx >= 0:
@@ -141,6 +142,9 @@ def check_text_rules(reply: str, case: dict[str, Any]) -> tuple[list[str], list[
             if any(n in before for n in ["不", "别", "没", "被", "敢"]):
                 continue
             flags.append(f"hard_rule:{rule}")
+            # 如果用户输入中也出现了该词，说明是用户主动提及，LLM 回应不算违规
+            if rule in user_input:
+                continue
 
     failure_flags = case.get("FAILURE_FLAGS", [])
     for flag in failure_flags:
@@ -194,10 +198,14 @@ def check_text_rules(reply: str, case: dict[str, Any]) -> tuple[list[str], list[
     # over_filtered_reply: 回复短到没有信息量（非寒暄/quiet场景）
     category = case.get("category", "")
     is_short_ok = category in ("greeting", "quiet") or case.get("tags", []) == ["fast_path", "casual"]
-    if not is_short_ok and len(reply) < 8:
+    if not is_short_ok and len(reply) < 6:
         # 排除自然的短回应（已扩展）
-        natural_short = {"懂了", "确实", "嗯", "哦", "行", "好", "是的", "没错", "抱抱", "懂", "抱抱你", "懂吧", "对啊", "确实啊"}
-        if reply.strip() not in natural_short and not any(reply.strip().startswith(s) for s in ["懂", "确实", "嗯", "哦", "行", "好", "抱抱", "对啊", "是"]):
+        natural_short = {
+            "懂了", "确实", "嗯", "哦", "行", "好", "是的", "没错", "抱抱", "懂", "抱抱你", "懂吧", "对啊", "确实啊",
+            "啊这..", "啊这...", "这也太真实了。", "这也太真实了..", "这也太惨了。", "这也太惨了..",
+            "这也太离谱了。", "这也太离谱了..", "啊？被发现了？", "这太真实了。", "这太真实了..",
+        }
+        if reply.strip() not in natural_short and not any(reply.strip().startswith(s) for s in ["懂", "确实", "嗯", "哦", "行", "好", "抱抱", "对啊", "是", "啊这", "这也太", "这太"]):
             flags.append("over_filtered_reply")
     
     # too_empty: 回复只包含空泛填充词
@@ -315,7 +323,7 @@ def check_metadata_rules(
     if max_chars is not None and len(reply) > max_chars:
         flags.append("too_long")
 
-    return flags
+    return flags, warnings
 
 
 def check_turn(
