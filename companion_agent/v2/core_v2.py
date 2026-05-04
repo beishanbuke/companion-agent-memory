@@ -417,9 +417,9 @@ class CompanionAgentCoreV2:
         
         # === 硬规则后处理 ===
         if policy:
-            # no-advice 场景过滤建议词汇
-            if not policy.allow_advice:
-                assistant_reply = self._enforce_no_advice_filter(assistant_reply, user_message)
+            # no-advice 场景过滤建议词汇（安全场景除外，需要保留行动指向）
+            if not policy.allow_advice and not safety_flag:
+                assistant_reply = self._enforce_no_advice_filter(assistant_reply, user_message, policy)
             # short 场景限制句子数（最多2句）
             if policy.response_length == "short":
                 assistant_reply = self._enforce_short_reply(assistant_reply, user_message)
@@ -1229,21 +1229,39 @@ class CompanionAgentCoreV2:
         text = ' '.join(text.split())
         return text
     
-    def _enforce_no_advice_filter(self, text: str, user_message: str) -> str:
-        """no-advice 场景硬过滤：删除含建议词汇的句子，必要时回退到安全回复。"""
+    def _enforce_no_advice_filter(self, text: str, user_message: str, policy: Any = None) -> str:
+        """no-advice 场景最小修剪：词级替换优先，句子级删除兜底，过滤后过短时 state-aware fallback。"""
         if not text:
             return text
         
-        # 建议词汇黑名单（按严重程度分组）
+        # 建议词汇黑名单（强建议才删句）
         advice_markers = ["建议", "试试", "你应该", "你可以", "要不", "方案", "规划", "第一步", "闹钟", "自律", "早起", "早睡"]
-        weak_markers = ["空虚", "数羊", "一只羊", "耳塞", "课表", "别慌", "没有", "分析", "在吗"]  # 情绪场景禁用词
+        # 弱禁用词：只删明显 cliché，保留正常中文表达
+        weak_markers = ["空虚", "数羊", "一只羊", "耳塞", "课表", "别慌", "在吗"]  # 已移除"没有""分析"
         
-        # 按句子分割
+        # 词级替换优先
+        replacements = {
+            "你可以试试": "要不就",
+            "可以试试": "要不就",
+            "不妨试试": "要不就",
+            "建议你": "",
+            "你应该": "",
+            "保持积极心态": "",
+            "加油": "",
+        }
+        
         import re
+        before = text
+        # 先做词级替换
+        for old, new in replacements.items():
+            text = text.replace(old, new)
+        
+        # 按句子分割，只删除含强建议词的句子
         sentences = re.split(r'([。！？.!?])', text)
-        # 重组句子
         reconstructed = []
         i = 0
+        removed = 0
+        replaced_terms = []
         while i < len(sentences):
             s = sentences[i]
             if i + 1 < len(sentences) and sentences[i + 1] in '。！？.!?':
@@ -1253,30 +1271,61 @@ class CompanionAgentCoreV2:
                 i += 1
             if not s.strip():
                 continue
-            # 检查是否包含禁用词
             has_advice = any(m in s for m in advice_markers)
             has_weak = any(m in s for m in weak_markers)
             if not has_advice and not has_weak:
                 reconstructed.append(s)
+            else:
+                removed += 1
         
         result = "".join(reconstructed).strip()
         
-        # 如果过滤后为空或只剩标点，回退到安全回复
-        if len(result) < 5:
-            # 根据用户消息选择最匹配的安全回退
+        # State-aware fallback：过滤后少于 8 个中文字符且非 greeting/quiet 时回退
+        cn_chars = len(re.findall(r'[\u4e00-\u9fff]', result))
+        if cn_chars < 8 and len(result) > 0:
             um = user_message.lower()
+            goal = getattr(policy, "goal", "") if policy else ""
+            # 按用户消息关键词匹配
             if "室友" in um or "闹钟" in um:
                 result = "这也太离谱了。"
             elif "起不来" in um or "睡" in um:
                 result = "懂的，床真的有毒。"
             elif "睡不着" in um:
                 result = "抱抱，我懂那种翻来覆去的感觉。"
-            elif "空" in um or "晚上" in um:
-                result = "晚上确实容易想多。"
-            elif "累" in um or "困" in um:
-                result = "懂的，先瘫着。"
+            elif "吃什么" in um or "饿" in um or "晚饭" in um:
+                result = "吃牛肉面吧，省心不容易踩雷。"
+            elif "论文" in um or "作业" in um or "ddl" in um:
+                result = "先抓最小一步，别一口气把自己压满。"
+            elif "累" in um or "困" in um or "瘫" in um:
+                result = "懂的，先瘫着，不急着动。"
+            elif "挂科" in um or "考试" in um:
+                result = "这也太真实了，先别慌。"
+            elif "crush" in um or "暗恋" in um:
+                result = "啊这该死的紧张感，我懂。"
+            elif "游戏" in um or "队友" in um:
+                result = "这也太惨了，换我直接卸载。"
             else:
-                result = "懂的。"
+                # 按 policy goal 回退
+                fallback_by_goal = {
+                    "stabilize": "这一下确实很重，先别急着逼自己处理好。",
+                    "stay_light": "这也太真实了。",
+                    "push_one_step": "先别管全部，挑一个最小的点开始就行。",
+                }
+                result = fallback_by_goal.get(goal, "懂的。")
+        
+        # Debug record
+        debug_info = {
+            "post_filter": {
+                "before": before,
+                "after": result,
+                "removed_sentences": removed,
+                "replaced_terms": replaced_terms,
+                "fallback_used": cn_chars < 8 and len(result) > 0,
+            }
+        }
+        # Attach to policy for upstream consumption if available
+        if policy and hasattr(policy, "_debug"):
+            policy._debug.update(debug_info)
         
         return result
     
@@ -1338,8 +1387,11 @@ class CompanionAgentCoreV2:
         if intent.primary_intent in {"casual", "banter", "quiet"}:
             return False
 
-        # 情绪支持/安全/建议/有工具结果/长回复才评审
-        if intent.primary_intent in {"emotional_support", "safety", "advice"}:
+        # 安全场景不评审——安全回复的严肃性和行动指向不能被重写
+        if intent.primary_intent == "safety":
+            return False
+        # 情绪支持/建议/有工具结果/长回复才评审
+        if intent.primary_intent in {"emotional_support", "advice"}:
             return True
 
         # 已有工具结果时评审
@@ -1389,6 +1441,9 @@ class CompanionAgentCoreV2:
             # 高风险
             "想死", "自杀", "自残", "伤害自己", "结束自己", "kill", "suicide", "self-harm",
             "hurt", "abuse", "violence", "crisis", "emergency",
+            # 中高风险 (safety-soft)
+            "活着好累", "活得好累", "撑不住了", "真的撑不住", "快撑不住",
+            "不想撑了", "坚持不下去了", "扛不住了", "受不了了",
             # 中风险
             "活着没意思", "没意思", "总是想哭", "想哭", "不想活", "活不下去", "死了算了",
             "活着没意义", "没意义",

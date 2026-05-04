@@ -40,6 +40,8 @@ class TurnPolicy:
     # 表达控制
     allow_humor: bool = True
     allow_advice: bool = False
+    allow_micro_action: bool = False  # 允许一个非常小的当前动作（如"先写标题"）
+    allow_direct_pick: bool = False   # 允许直接替用户做选择（如"吃牛肉面"）
     allow_recap: bool = False
     response_length: str = "short"  # short/medium/long
 
@@ -113,7 +115,11 @@ class PolicyPlanner:
         policy.main_thread_id = target_id
         
         # 只有当用户明确提到相关线索或要求复盘时才 soft/active
-        user_asks_review = any(w in msg for w in ["复习", "复盘", "回顾", "提醒", "那个事", "之前", "继续", "接着说", "说说"])
+        user_asks_review = any(w in msg for w in [
+            "复习", "复盘", "回顾", "提醒", "那个事", "之前",
+            "继续", "接着说", "说说", "回到刚才", "刚才那个",
+            "论文那个", "作业那个", "你刚才说的", "我们接着", "继续刚才",
+        ])
         user_mentions_related = target_id and any(
             kw in msg for kw in ["考试", "ddl", "论文", "工作", "压力", "复习", "准备"]
         )
@@ -218,8 +224,12 @@ class PolicyPlanner:
             policy.max_questions = 0
             policy.response_length = "short"
             policy.context_profile = "standard"
-            # 学习类吐槽给短提示，其他给hint
-            policy.skill_verbosity = "short" if intent.task_category == "study" else "hint"
+            # 学习类吐槽给短提示+micro action，其他给hint
+            if intent.task_category == "study":
+                policy.skill_verbosity = "short"
+                policy.allow_micro_action = True
+            else:
+                policy.skill_verbosity = "hint"
             policy.reason = "用户在发泄情绪，先接住"
             return self._finalize_policy(policy)
         
@@ -317,10 +327,12 @@ class PolicyPlanner:
             policy.max_actions = 1
             policy.response_length = "medium"
             policy.context_profile = "task_heavy"
-            # 根据任务类别设置 skill_verbosity
+            # 根据任务类别设置 skill_verbosity 和 micro-action/direct-pick
             if intent.task_category == "food":
                 policy.skill_verbosity = "hint"
                 policy.response_length = "short"
+                policy.allow_direct_pick = True
+                policy.allow_advice = False  # food: direct pick is not advice
             elif intent.task_category == "social":
                 policy.skill_verbosity = "hint"
                 policy.response_length = "short"

@@ -128,9 +128,10 @@ def count_questions(text: str) -> int:
     return text.count("?") + text.count("？")
 
 
-def check_text_rules(reply: str, case: dict[str, Any]) -> list[str]:
-    """Text-level quality checks."""
+def check_text_rules(reply: str, case: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Text-level quality checks. Returns (flags, warnings)."""
     flags = []
+    warnings = []
     hard_rules = case.get("hard_rules", [])
     for rule in hard_rules:
         idx = reply.find(rule)
@@ -193,10 +194,10 @@ def check_text_rules(reply: str, case: dict[str, Any]) -> list[str]:
     # over_filtered_reply: 回复短到没有信息量（非寒暄/quiet场景）
     category = case.get("category", "")
     is_short_ok = category in ("greeting", "quiet") or case.get("tags", []) == ["fast_path", "casual"]
-    if not is_short_ok and len(reply) < 12:
-        # 排除自然的短回应
-        natural_short = {"懂了", "确实", "嗯", "哦", "行", "好", "是的", "没错", "抱抱", "懂"}
-        if reply.strip() not in natural_short and not any(reply.strip().startswith(s) for s in ["懂", "确实", "嗯", "哦", "行", "好"]):
+    if not is_short_ok and len(reply) < 8:
+        # 排除自然的短回应（已扩展）
+        natural_short = {"懂了", "确实", "嗯", "哦", "行", "好", "是的", "没错", "抱抱", "懂", "抱抱你", "懂吧", "对啊", "确实啊"}
+        if reply.strip() not in natural_short and not any(reply.strip().startswith(s) for s in ["懂", "确实", "嗯", "哦", "行", "好", "抱抱", "对啊", "是"]):
             flags.append("over_filtered_reply")
     
     # too_empty: 回复只包含空泛填充词
@@ -204,16 +205,17 @@ def check_text_rules(reply: str, case: dict[str, Any]) -> list[str]:
     if reply.strip() in empty_patterns:
         flags.append("too_empty")
 
-    return flags
+    return flags, warnings
 
 
 def check_metadata_rules(
     reply: str,
     case: dict[str, Any],
     metadata: dict[str, Any],
-) -> list[str]:
-    """Metadata-level quality checks."""
+) -> tuple[list[str], list[str]]:
+    """Metadata-level quality checks. Returns (flags, warnings)."""
     flags = []
+    warnings = []
     hard_rules_dict = case.get("hard_rules_dict", {})
     debug = metadata.get("debug", {})
     context_meta = metadata.get("context_meta", {})
@@ -259,12 +261,25 @@ def check_metadata_rules(
                 flags.append("policy_pulled_when_should_silent")
             flags.append("wrong_pull_mode")
 
-    # skill_verbosity metadata check
+    # skill_verbosity metadata check (hard/warn two-tier)
     expected_verbosity = hard_rules_dict.get("skill_verbosity")
     if expected_verbosity is not None:
         actual = policy.get("skill_verbosity", "")
         if actual != expected_verbosity:
-            flags.append("wrong_skill_verbosity")
+            # Tier 1: expected=hint, actual=short — if reply is short and not over-explained, warn only
+            if expected_verbosity == "hint" and actual == "short":
+                if len(reply) <= 70 and not any(k in reply for k in ["详细计划", "步骤", "预算", "搜索词", "1.", "2.", "首先"]):
+                    warnings.append("skill_verbosity_mismatch_but_output_ok")
+                else:
+                    flags.append("wrong_skill_verbosity")
+            # Tier 2: expected=short, actual=hint — if reply is reasonably short, warn
+            elif expected_verbosity == "short" and actual == "hint":
+                if len(reply) <= 80:
+                    warnings.append("skill_verbosity_underused")
+                else:
+                    flags.append("wrong_skill_verbosity")
+            else:
+                flags.append("wrong_skill_verbosity")
 
     # max_questions metadata check
     expected_max_q = hard_rules_dict.get("max_questions")
@@ -307,13 +322,14 @@ def check_turn(
     reply: str,
     case: dict[str, Any],
     metadata: dict[str, Any],
-) -> tuple[bool, list[str]]:
+) -> tuple[bool, list[str], list[str]]:
     """Check a single turn against all rules."""
-    text_flags = check_text_rules(reply, case)
-    meta_flags = check_metadata_rules(reply, case, metadata)
+    text_flags, text_warnings = check_text_rules(reply, case)
+    meta_flags, meta_warnings = check_metadata_rules(reply, case, metadata)
     all_flags = list(dict.fromkeys(text_flags + meta_flags))  # dedup preserve order
+    all_warnings = list(dict.fromkeys(text_warnings + meta_warnings))
     passed = len(all_flags) == 0
-    return passed, all_flags
+    return passed, all_flags, all_warnings
 
 
 async def call_chat(
@@ -424,7 +440,7 @@ async def run_isolated_cases(
             continue
 
         reply = result_data["reply"]
-        passed, flags = check_turn(reply, case, result_data["metadata"])
+        passed, flags, warnings = check_turn(reply, case, result_data["metadata"])
 
         results.append({
             "case": case_id,
@@ -433,6 +449,7 @@ async def run_isolated_cases(
             "actual_reply": reply,
             "passed": passed,
             "flags": flags,
+            "warnings": warnings,
             "reason": "; ".join(flags) if flags else "No violations",
             **result_data["metadata"],
         })
@@ -483,7 +500,7 @@ async def run_scenario_cases(
                 continue
 
             reply = result_data["reply"]
-            passed, flags = check_turn(reply, turn, result_data["metadata"])
+            passed, flags, warnings = check_turn(reply, turn, result_data["metadata"])
             scenario_passed = scenario_passed and passed
             scenario_flags.extend(flags)
 
@@ -493,6 +510,7 @@ async def run_scenario_cases(
                 "actual_reply": reply,
                 "passed": passed,
                 "flags": flags,
+                "warnings": warnings,
                 **result_data["metadata"],
             })
 

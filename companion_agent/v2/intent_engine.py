@@ -88,6 +88,36 @@ def cheap_intent_fast_path(message: str) -> dict | None:
             "clarification_confidence": 0.0,
         }
     
+    # 中高风险安全信号 (safety-soft)
+    MEDIUM_HIGH_SAFETY_PATTERNS = [
+        "活着好累",
+        "活得好累",
+        "撑不住了",
+        "真的撑不住",
+        "快撑不住",
+        "不想撑了",
+        "坚持不下去了",
+        "扛不住了",
+        "受不了了",
+    ]
+    if any(k in text for k in MEDIUM_HIGH_SAFETY_PATTERNS):
+        return {
+            "primary_intent": "safety",
+            "intent_confidence": 0.85,
+            "emotional_state": "sad",
+            "emotional_intensity": 0.8,
+            "emotional_context": "用户表达中高风险情绪信号",
+            "implicit_needs": ["被认真对待", "真人支持"],
+            "conversation_rhythm": "serious",
+            "task_category": "safety",
+            "task_urgency": 0.8,
+            "action_receptivity": 0.7,
+            "topic_shift_type": "none",
+            "pressure_signal": 0.7,
+            "thread_candidates": ["情绪支持"],
+            "clarification_confidence": 0.0,
+        }
+
     # 中风险安全信号
     if any(k in text for k in ["活着没意思", "没意思", "总是想哭", "想哭", "活着没意义", "没意义"]):
         return {
