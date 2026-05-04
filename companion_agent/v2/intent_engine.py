@@ -127,6 +127,107 @@ class IntentEngine:
         except Exception:
             return self._fallback_analysis(msg)
     
+    def _fast_path_analysis(self, message: str) -> IntentAnalysis | None:
+        """规则层 fast path：常见场景不走 LLM。"""
+        t = message.lower().strip()
+        
+        # 饮食类
+        if any(kw in t for kw in ["吃什么", "饿了", "外卖", "食堂", "夜宵", "想吃"]):
+            return IntentAnalysis(
+                primary_intent="advice",
+                intent_confidence=0.7,
+                emotional_state="neutral",
+                emotional_intensity=0.3,
+                emotional_context="日常饮食决策",
+                implicit_needs=["省脑子", "快速决策"],
+                conversation_rhythm="seeking_help",
+                task_category="food",
+                task_urgency=0.5,
+                action_receptivity=0.7,
+                topic_shift_type="none",
+                pressure_signal=0.1,
+                thread_candidates=["饮食"],
+                clarification_confidence=0.0,
+            )
+        
+        # 学习/考试类
+        if any(kw in t for kw in ["考试", "复习", "作业", "论文", "ddl", "deadline", "学不进去"]):
+            return IntentAnalysis(
+                primary_intent="advice",
+                intent_confidence=0.75,
+                emotional_state="anxious" if any(kw in t for kw in ["慌", "急", "没复习", "来不及"]) else "neutral",
+                emotional_intensity=0.5,
+                emotional_context="学习相关事务",
+                implicit_needs=["被降低焦虑", "获得可行计划"],
+                conversation_rhythm="seeking_help" if any(kw in t for kw in ["怎么办", "怎么", "求助"]) else "planning",
+                task_category="study",
+                task_urgency=0.7,
+                action_receptivity=0.6,
+                topic_shift_type="none",
+                pressure_signal=0.4,
+                thread_candidates=["学习"],
+                clarification_confidence=0.0,
+            )
+        
+        # 社交/恋爱类
+        if any(kw in t for kw in ["crush", "怎么回", "回复", "他说", "她说", "约我", "表白"]):
+            return IntentAnalysis(
+                primary_intent="advice",
+                intent_confidence=0.7,
+                emotional_state="neutral",
+                emotional_intensity=0.4,
+                emotional_context="社交/恋爱求助",
+                implicit_needs=["获得话术", "确认边界"],
+                conversation_rhythm="seeking_help",
+                task_category="social",
+                task_urgency=0.4,
+                action_receptivity=0.6,
+                topic_shift_type="none",
+                pressure_signal=0.2,
+                thread_candidates=["社交"],
+                clarification_confidence=0.0,
+            )
+        
+        # 明显的情绪发泄
+        if any(kw in t for kw in ["好烦", "无语", "烦死了", "想死", "崩溃", "受不了"]):
+            return IntentAnalysis(
+                primary_intent="vent",
+                intent_confidence=0.8,
+                emotional_state="angry" if any(kw in t for kw in ["烦", "气", "恨"]) else "sad",
+                emotional_intensity=0.7,
+                emotional_context="情绪发泄",
+                implicit_needs=["被接住", "不被教育"],
+                conversation_rhythm="venting",
+                task_category="none",
+                task_urgency=0.0,
+                action_receptivity=0.2,
+                topic_shift_type="none",
+                pressure_signal=0.5,
+                thread_candidates=["情绪"],
+                clarification_confidence=0.0,
+            )
+        
+        # 用户想安静
+        if any(kw in t for kw in ["不想说", "别问了", "让我静静", "安静", "不说了", "算了"]):
+            return IntentAnalysis(
+                primary_intent="quiet",
+                intent_confidence=0.8,
+                emotional_state="neutral",
+                emotional_intensity=0.3,
+                emotional_context="用户需要空间",
+                implicit_needs=["不被追问", "留空间"],
+                conversation_rhythm="chill",
+                task_category="none",
+                task_urgency=0.0,
+                action_receptivity=0.1,
+                topic_shift_type="none",
+                pressure_signal=0.0,
+                thread_candidates=[],
+                clarification_confidence=0.0,
+            )
+        
+        return None
+    
     def _fallback_analysis(self, message: str) -> IntentAnalysis:
         """轻规则兜底。"""
         t = message.lower().strip()
