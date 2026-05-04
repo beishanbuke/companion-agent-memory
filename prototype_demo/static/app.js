@@ -2117,6 +2117,45 @@ function renderContextTrace(debug) {
     html += `</div>`;
   }
 
+  // === Step 7: v2 Brain Debug (new) ===
+  const v2State = debug.state || {};
+  const v2Policy = debug.policy || {};
+  const v2Intent = debug.intent || {};
+  const v2Threads = debug.threads || {};
+  const v2Relationship = debug.relationship || {};
+  
+  if (v2Policy.goal || v2State.current_state) {
+    html += `
+      <div class="trace-section">
+        <div class="trace-section-title">v2 大脑状态</div>
+    `;
+    if (v2State.current_state) {
+      html += `<div class="trace-stat"><strong>状态:</strong> ${escapeHtml(v2State.current_state)} ${v2State.mode ? '(' + escapeHtml(v2State.mode) + ')' : ''}</div>`;
+    }
+    if (v2Policy.goal) {
+      html += `<div class="trace-stat"><strong>策略:</strong> ${escapeHtml(v2Policy.goal)}</div>`;
+    }
+    if (v2Policy.pull_mode && v2Policy.pull_mode !== "silent") {
+      html += `<div class="trace-stat"><strong>主线拉回:</strong> ${escapeHtml(v2Policy.pull_mode)}</div>`;
+    }
+    if (v2Policy.skill_verbosity) {
+      html += `<div class="trace-stat"><strong>技能输出:</strong> ${escapeHtml(v2Policy.skill_verbosity)}</div>`;
+    }
+    if (debug.tool_hint_used) {
+      html += `<div class="trace-stat"><strong>技能提示:</strong> ${escapeHtml(String(debug.tool_hint_used).slice(0, 60))}</div>`;
+    }
+    if (v2Intent.primary) {
+      html += `<div class="trace-stat"><strong>意图:</strong> ${escapeHtml(v2Intent.primary)} · ${escapeHtml(v2Intent.rhythm || '')}</div>`;
+    }
+    if (v2Threads.background_count !== undefined) {
+      html += `<div class="trace-stat"><strong>后台主线:</strong> ${v2Threads.background_count} 条</div>`;
+    }
+    if (v2Relationship.profile_changed) {
+      html += `<div class="trace-stat"><strong>关系学习:</strong> 已更新</div>`;
+    }
+    html += `</div>`;
+  }
+
   body.innerHTML = html;
 }
 

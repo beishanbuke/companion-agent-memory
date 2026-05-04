@@ -326,41 +326,35 @@ class ThreadManager:
             })
         return summaries
     
-    def should_pull_main_thread(self, session_id: str = "") -> tuple[bool, str]:
-        """判断是否应该拉回主线。
-        
-        条件：
-        - 当前前台是轻闲聊
-        - 后台存在高压未解决主线
-        - 用户情绪已稳定
-        
-        Returns:
-            (是否拉回, 目标主线ID)
+    def should_pull_main_thread(self, session_id: str = "") -> tuple[str, str]:
+        """判断是否应该拉回主线，返回 (pull_mode, target_id)。
+
+        pull_mode:
+        - "silent":  后台保留，不提醒用户（默认）
+        - "soft":    极轻提醒，不切换前台主线
+        - "active":  正式切换前台主线并提醒
         """
         session = self._get_or_create_session(session_id)
         if not session.active_thread or session.active_thread.thread_type != "light_chat":
-            return False, ""
-        
+            return "silent", ""
+
         # 找后台中分数最高的非 light_chat 主线
         best_thread = None
         best_score = 0.0
-        
+
         for thread in session.background_threads:
             if thread.thread_type == "light_chat":
                 continue
-            
-            # === action_resume_score: 基于复盘 next_actions 的恢复优先级 ===
+
             action_resume_score = 0.0
             capsule = thread.resume_capsule or {}
             review_actions = capsule.get("review_next_actions", [])
             last_review_at = capsule.get("last_review_at", 0)
             if review_actions:
-                # 有明确的 next_actions，提高恢复优先级
                 action_resume_score = 0.3
-                # 如果复盘比较新（24小时内），额外加分
                 if last_review_at and (time.time() - last_review_at) < 86400:
                     action_resume_score += 0.15
-            
+
             score = (
                 thread.urgency_score * 0.35 +
                 thread.emotion_score * 0.25 +
@@ -370,11 +364,22 @@ class ThreadManager:
             if score > best_score and score > 0.6:
                 best_score = score
                 best_thread = thread
-        
-        if best_thread:
-            return True, best_thread.id
-        
-        return False, ""
+
+        if not best_thread:
+            return "silent", ""
+
+        # 默认 silent，根据条件升级
+        pull_mode = "silent"
+
+        # 只有当压力高且用户提到相关线索时才 soft
+        if best_score > 0.75 and best_thread.urgency_score > 0.7:
+            pull_mode = "soft"
+
+        # 只有当用户明确要求复盘/提醒时才 active
+        # 这个判断由 PolicyPlanner 结合用户消息来做
+        # ThreadManager 只提供 recommendation，不强制 active
+
+        return pull_mode, best_thread.id
     
     def _find_thread(self, thread_id: str, session_id: str = "") -> Thread | None:
         """查找主线。"""

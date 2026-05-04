@@ -295,6 +295,7 @@ class CompanionAgentCoreV2:
                         task_context += f"\n{result.user_visible_summary}"
         
         # 生活技能作为 reasoning tool 执行
+        tool_hint_used = ""
         if policy.goal in ("push_one_step", "task_execution") and intent.task_category != "none":
             life_advice = await self.life_skills.execute(
                 task_category=intent.task_category,
@@ -306,7 +307,18 @@ class CompanionAgentCoreV2:
                 },
             )
             if life_advice:
-                task_context += f"\n【生活建议】{life_advice.advice}"
+                # 默认只把技能作为内部 hint 注入 prompt，不污染最终回复
+                if policy.skill_verbosity == "hint":
+                    tool_hint_used = life_advice.advice[:80] if len(life_advice.advice) > 80 else life_advice.advice
+                    task_context += f"\n【技能提示】{tool_hint_used}（不要直接复述，作为回复参考）"
+                elif policy.skill_verbosity == "short":
+                    tool_hint_used = life_advice.advice[:150] if len(life_advice.advice) > 150 else life_advice.advice
+                    task_context += f"\n【技能提示】{tool_hint_used}"
+                else:
+                    # card / full: 输出完整卡片
+                    task_context += f"\n【生活建议】{life_advice.advice}"
+                    tool_hint_used = life_advice.advice[:100]
+                
                 active_thread = self.thread_manager.get_active_thread_summary(sid)
                 if active_thread:
                     self.thread_manager.update_thread(
@@ -487,9 +499,11 @@ class CompanionAgentCoreV2:
                 },
                 "policy": {
                     "goal": policy.goal,
+                    "pull_mode": policy.pull_mode,
                     "pull_main_thread": policy.pull_main_thread,
                     "allow_humor": policy.allow_humor,
                     "allow_advice": policy.allow_advice,
+                    "skill_verbosity": policy.skill_verbosity,
                 },
                 "threads": {
                     "active": self.thread_manager.get_active_thread_summary(sid),
@@ -501,6 +515,7 @@ class CompanionAgentCoreV2:
                     "after": new_profile_summary,
                     "session_id": sid,
                 },
+                "tool_hint_used": tool_hint_used,
                 "stage_timings": {k: round(v, 3) for k, v in stage_timings.items()},
             },
         )
@@ -885,9 +900,11 @@ class CompanionAgentCoreV2:
                 },
                 "policy": {
                     "goal": policy.goal,
+                    "pull_mode": policy.pull_mode,
                     "pull_main_thread": policy.pull_main_thread,
                     "allow_humor": policy.allow_humor,
                     "allow_advice": policy.allow_advice,
+                    "skill_verbosity": policy.skill_verbosity,
                 },
                 "threads": {
                     "active": self.thread_manager.get_active_thread_summary(sid),
@@ -899,6 +916,7 @@ class CompanionAgentCoreV2:
                     "after": new_profile_summary,
                     "session_id": sid,
                 },
+                "tool_hint_used": tool_hint_used,
                 "stage_timings": {k: round(v, 3) for k, v in stage_timings.items()},
             },
         )

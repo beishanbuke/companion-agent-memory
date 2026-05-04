@@ -28,6 +28,7 @@ class TurnPolicy:
     goal: str = "stay_light"  # stabilize/push_one_step/review_day/resume_main_thread/stay_light/clarify_urgency
     
     # 主线管理
+    pull_mode: str = "silent"  # silent/soft/active
     pull_main_thread: bool = False
     main_thread_id: str = ""
     
@@ -51,6 +52,9 @@ class TurnPolicy:
     
     # 原因
     reason: str = ""
+
+    # 技能输出控制
+    skill_verbosity: str = "hint"  # hint/short/card/full
 
 
 class PolicyPlanner:
@@ -80,14 +84,38 @@ class PolicyPlanner:
         """
         
         policy = TurnPolicy()
+        msg = user_message or ""
         
-        # === 1. 判断是否需要拉回主线 ===
-        should_pull, target_id = thread_manager.should_pull_main_thread(getattr(state, "session_id", ""))
-        if should_pull and target_id:
-            policy.pull_main_thread = True
-            policy.main_thread_id = target_id
+        # === 1. 判断主线拉回模式 ===
+        pull_mode, target_id = thread_manager.should_pull_main_thread(getattr(state, "session_id", ""))
+        
+        # 默认 silent，不主动拉回
+        policy.pull_mode = "silent"
+        policy.main_thread_id = target_id
+        
+        # 只有当用户明确提到相关线索或要求复盘时才 soft/active
+        user_asks_review = any(w in msg for w in ["复习", "复盘", "回顾", "提醒", "那个事", "之前"])
+        user_mentions_related = target_id and any(
+            kw in msg for kw in ["考试", "ddl", "论文", "工作", "压力", "复习", "准备"]
+        )
+        
+        if pull_mode == "soft" and (user_asks_review or user_mentions_related):
+            policy.pull_mode = "soft"
             policy.goal = "resume_main_thread"
-            policy.reason = f"后台存在高压主线，用户情绪稳定，建议拉回: {target_id}"
+            policy.reason = f"用户提及相关线索，轻提醒后台主线: {target_id}"
+            policy.max_questions = 0
+            policy.allow_humor = False
+            policy.response_length = "short"
+            policy.context_profile = "standard"
+            # soft 模式下不正式切换前台主线，只在回复中轻提一句
+            policy.pull_main_thread = False
+            return policy
+        elif user_asks_review and target_id:
+            # 用户明确要求复盘，可以 active
+            policy.pull_mode = "active"
+            policy.pull_main_thread = True
+            policy.goal = "resume_main_thread"
+            policy.reason = f"用户主动要求复盘主线: {target_id}"
             policy.max_questions = 0
             policy.allow_humor = False
             policy.response_length = "medium"
@@ -106,6 +134,7 @@ class PolicyPlanner:
             policy.max_actions = 0
             policy.response_length = "short"
             policy.context_profile = "minimal"
+            policy.skill_verbosity = "hint"
             policy.reason = "用户情绪高强度，优先稳定"
             return policy
         
@@ -115,9 +144,11 @@ class PolicyPlanner:
                 policy.goal = "push_one_step"
                 policy.target_state = "pushable_low_energy"
                 policy.allow_advice = True
+                policy.max_questions = 0
                 policy.max_actions = 1
                 policy.response_length = "medium"
                 policy.context_profile = "standard"
+                policy.skill_verbosity = "short"
                 policy.reason = "用户情绪中等，有一定承接力，可轻推一步"
                 return policy
         
@@ -126,9 +157,11 @@ class PolicyPlanner:
             policy.goal = "push_one_step"
             policy.target_state = "task_execution"
             policy.allow_advice = True
+            policy.max_questions = 0
             policy.tool_calls = [intent.task_category] if intent.task_category != "none" else []
             policy.response_length = "medium"
             policy.context_profile = "task_heavy"
+            policy.skill_verbosity = "card" if intent.action_receptivity > 0.7 else "short"
             policy.reason = f"用户明确执行任务，紧急度{intent.task_urgency:.1f}"
             return policy
         
@@ -147,6 +180,7 @@ class PolicyPlanner:
             policy.max_questions = 1
             policy.response_length = "medium"
             policy.context_profile = "review"
+            policy.skill_verbosity = "short"
             policy.reason = f"用户主动{review_scope}复盘"
             return policy
         
@@ -159,6 +193,7 @@ class PolicyPlanner:
                 policy.max_questions = 1
                 policy.response_length = "short"
                 policy.context_profile = "minimal"
+                policy.skill_verbosity = "hint"
                 policy.reason = "检测到高压话题切换，需要确认紧急度"
                 return policy
         
@@ -168,9 +203,10 @@ class PolicyPlanner:
             policy.target_state = "light_chat"
             policy.allow_humor = self._rel_get(relationship_profile, "humor_mode", "light") != "off"
             policy.allow_advice = False
-            policy.max_questions = 1
+            policy.max_questions = 0
             policy.response_length = "short"
             policy.context_profile = "standard"
+            policy.skill_verbosity = "hint"
             policy.reason = "轻松闲聊模式"
             return policy
         
@@ -180,9 +216,10 @@ class PolicyPlanner:
             policy.target_state = "support_soft"
             policy.allow_advice = self._rel_get(relationship_profile, "advice_threshold", 0.5) > 0.7
             policy.allow_humor = False
-            policy.max_questions = 1
+            policy.max_questions = 0
             policy.response_length = "medium"
             policy.context_profile = "standard"
+            policy.skill_verbosity = "hint"
             policy.reason = "用户在倾诉"
             return policy
         
@@ -191,9 +228,11 @@ class PolicyPlanner:
             policy.goal = "push_one_step"
             policy.target_state = "planning"
             policy.allow_advice = True
+            policy.max_questions = 0
             policy.max_actions = 1
             policy.response_length = "medium"
             policy.context_profile = "task_heavy"
+            policy.skill_verbosity = "card" if intent.action_receptivity > 0.6 else "short"
             policy.reason = "用户在做规划"
             return policy
         

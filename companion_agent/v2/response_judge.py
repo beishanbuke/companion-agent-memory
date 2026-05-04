@@ -40,19 +40,42 @@ class JudgeResult:
 class ResponseJudge:
     """回复质量评审器（统一 Runtime）。"""
     
-    TEMPLATE_PATTERNS = [
-        "以下是", "建议您", "首先", "其次", "最后", "总结", "综上所述",
-        "针对您的问题", "根据您的描述", "希望以上", "如有需要",
-    ]
+    # 本科生陪伴场景下的坏味道模式（优先规则检测）
+    BAD_PATTERNS = {
+        "psych_therapy_tone": [
+            "我理解你的感受", "这很重要", "你的感受很重要", "请相信",
+            "接纳自己", "自我关怀", "情绪价值", "内在力量",
+        ],
+        "customer_service_tone": [
+            "很高兴", "为您服务", "请问还有什么", "感谢您的", "祝您",
+            "欢迎", "请随时", "如有问题",
+        ],
+        "teacher_preaching_tone": [
+            "你应该", "你需要", "你必须", "重要的是", "记住要",
+            "不要忘记", "关键在于", "本质上", "其实你应该", "建议你制定",
+            "保持积极心态", "合理规划", "养成良好的",
+        ],
+        "over_summary_tone": [
+            "综上所述", "总结一下", "总而言之", "归纳一下",
+            "首先", "其次", "最后", "第一", "第二", "第三",
+        ],
+        "over_question_tone": [
+            "为什么呢", "你觉得呢", "可以吗", "好吗", "对吗",
+        ],
+        "abrupt_thread_pull": [
+            "不过你之前", "但是你还有", "虽然你在", "我们回到",
+            "别忘了你", "你之前说", "先别管这个",
+        ],
+    }
     
-    PREACHY_PATTERNS = [
-        "你应该", "你需要", "你必须", "重要的是", "记住要",
-        "不要忘记", "关键在于", "本质上", "其实你应该",
-    ]
-    
-    SERVICE_PATTERNS = [
-        "很高兴", "为您服务", "请问还有什么", "感谢您的", "祝您", "欢迎",
-    ]
+    BAD_PATTERN_SCORES = {
+        "psych_therapy_tone": 2.0,
+        "customer_service_tone": 2.0,
+        "teacher_preaching_tone": 1.5,
+        "over_summary_tone": 1.0,
+        "over_question_tone": 0.5,
+        "abrupt_thread_pull": 2.0,
+    }
     
     def __init__(self, runtime: LLMRuntime | None = None):
         self._runtime = runtime or get_llm_runtime()
@@ -65,14 +88,12 @@ class ResponseJudge:
         conversation_mode: str = "chat",
         conversation_state: dict[str, Any] | None = None,
     ) -> JudgeResult:
-        """评审回复质量，分级重写。"""
+        """评审回复质量。规则优先，只有命中坏味道时才触发 LLM rewrite。"""
         
         issues = []
         
-        # === 规则层检测 ===
-        issues.extend(self._check_template_smell(assistant_reply))
-        issues.extend(self._check_preachy(assistant_reply))
-        issues.extend(self._check_service_tone(assistant_reply))
+        # === 规则层检测（本科生陪伴场景坏味道）===
+        issues.extend(self._check_bad_patterns(assistant_reply))
         issues.extend(self._check_wrong_mode(assistant_reply, conversation_mode))
         issues.extend(self._check_bad_questions(assistant_reply))
         issues.extend(self._check_parentheses(assistant_reply))
@@ -80,27 +101,59 @@ class ResponseJudge:
         
         # 计算基础分
         base_score = 8.0
-        base_score -= len(issues) * 1.5
+        for issue in issues:
+            for category, score in self.BAD_PATTERN_SCORES.items():
+                if category in issue:
+                    base_score -= score
+                    break
+            else:
+                base_score -= 1.0
         
-        # === 决定重写级别 ===
-        rewrite_level = self._determine_rewrite_level(issues, conversation_mode)
+        # === 决定是否需要 LLM rewrite ===
+        # 只有规则发现问题且比较严重时才用 LLM
+        should_run_llm = False
+        rewrite_level = "none"
         
-        # === LLM 层评审（可选，规则已发现严重问题时跳过）===
+        severe_issues = [i for i in issues if any(
+            k in i for k in ["psych_therapy_tone", "customer_service_tone", "abrupt_thread_pull"]
+        )]
+        medium_issues = [i for i in issues if any(
+            k in i for k in ["teacher_preaching_tone", "over_summary_tone"]
+        )]
+        
+        if len(severe_issues) >= 1:
+            rewrite_level = "rewrite"
+            should_run_llm = True
+        elif len(medium_issues) >= 2 or len(issues) >= 4:
+            rewrite_level = "rewrite"
+            should_run_llm = True
+        elif len(issues) >= 1:
+            rewrite_level = "tone_fix"
+            # tone_fix 用规则重写，不调用 LLM
+            should_run_llm = False
+        
+        # === LLM 层评审（仅严重问题时）===
         llm_score = None
         llm_issues = []
         improved = assistant_reply
         
-        if rewrite_level == "rewrite" or (not issues and len(assistant_reply) > 10):
+        if should_run_llm and self._runtime:
             try:
                 llm_score, llm_issues, improved, llm_level = await self._llm_judge(
                     user_message, assistant_reply, conversation_mode
                 )
-                if llm_level == "rewrite" or rewrite_level == "rewrite":
+                if llm_level == "rewrite":
                     rewrite_level = "rewrite"
-                elif llm_level == "tone_fix" and rewrite_level == "none":
-                    rewrite_level = "tone_fix"
             except Exception:
-                pass
+                # LLM 失败时回退到规则重写
+                improved = await self._rule_based_rewrite(
+                    assistant_reply, issues, conversation_mode, rewrite_level
+                )
+        elif rewrite_level == "tone_fix":
+            # 轻问题直接用规则重写
+            improved = await self._rule_based_rewrite(
+                assistant_reply, issues, conversation_mode, "tone_fix"
+            )
         
         # 综合评分
         if llm_score is not None:
@@ -111,19 +164,13 @@ class ResponseJudge:
         final_score = max(0, min(10, final_score))
         all_issues = issues + llm_issues
         
-        # 如果规则发现了问题但 LLM 没有重写，用规则层建议重写
-        if rewrite_level != "none" and improved == assistant_reply:
-            improved = await self._rule_based_rewrite(
-                assistant_reply, all_issues, conversation_mode, rewrite_level
-            )
-        
         # 生成建议
         suggestions = self._generate_suggestions(all_issues)
         
         # 判断是否合格
         is_good = final_score >= 7.0 and len(all_issues) <= 2 and rewrite_level == "none"
         
-        # 记录打回历史（不合格时）
+        # 记录打回历史
         if not is_good:
             self._rejection_history.append({
                 "user_message": user_message[:100],
@@ -132,7 +179,6 @@ class ResponseJudge:
                 "issues": all_issues,
                 "rewrite_level": rewrite_level,
             })
-            # 只保留最近 20 条
             if len(self._rejection_history) > 20:
                 self._rejection_history = self._rejection_history[-20:]
         
@@ -146,150 +192,36 @@ class ResponseJudge:
             rewrite_reason="; ".join(all_issues[:3]) if all_issues else "",
         )
     
-    def _determine_rewrite_level(self, issues: list[str], mode: str) -> str:
-        """根据问题数量和类型决定重写级别。"""
-        if not issues:
-            return "none"
-        
-        # 严重问题：模板味、客服腔、角色破坏
-        severe_issues = [i for i in issues if any(k in i for k in ["模板味", "客服腔", "角色破坏"])]
-        if len(severe_issues) >= 2:
-            return "rewrite"
-        
-        # 中等问题：说教、模式错误
-        medium_issues = [i for i in issues if any(k in i for k in ["说教", "模式错误"])]
-        if len(medium_issues) >= 2 or len(issues) >= 4:
-            return "rewrite"
-        
-        # 轻问题：追问、括号
-        if issues:
-            return "tone_fix"
-        
-        return "none"
-    
-    async def _rule_based_rewrite(
-        self,
-        reply: str,
-        issues: list[str],
-        mode: str,
-        level: str,
-    ) -> str:
-        """基于规则的轻量级重写。"""
-        improved = reply
-        
-        if level == "tone_fix":
-            # 轻改：替换关键词、删括号、减追问
-            for issue in issues:
-                if "追问过多" in issue:
-                    # 只保留第一个问号
-                    improved = self._reduce_questions(improved)
-                elif "括号" in issue:
-                    import re
-                    improved = re.sub(r'[（(].*?[)）]', '', improved)
-                elif "模板味" in issue:
-                    improved = improved.replace("以下是", "").replace("综上所述", "")
-                elif "说教味" in issue:
-                    improved = improved.replace("你应该", "要不试试").replace("你需要", "可以")
-                elif "客服腔" in issue:
-                    improved = improved.replace("为您服务", "").replace("祝您", "希望")
-        
-        elif level == "rewrite":
-            # 重改：使用 LLM 重写
-            try:
-                improved = await self._llm_rewrite(reply, issues, mode)
-            except Exception:
-                # 如果 LLM 重写失败，用更强的规则重写
-                improved = self._heavy_rule_rewrite(reply, issues)
-        
-        return improved.strip()
-    
-    def _reduce_questions(self, text: str) -> str:
-        """减少追问数量，只保留第一个。"""
-        parts = []
-        question_seen = False
-        for ch in text:
-            if ch in "?？":
-                if question_seen:
-                    continue
-                question_seen = True
-            parts.append(ch)
-        return "".join(parts)
-    
-    def _heavy_rule_rewrite(self, reply: str, issues: list[str]) -> str:
-        """强规则重写（当 LLM 不可用时）。"""
-        # 先执行所有 tone_fix
-        improved = reply
-        for issue in issues:
-            if "模板味" in issue:
-                for pattern in self.TEMPLATE_PATTERNS:
-                    improved = improved.replace(pattern, "")
-            elif "说教味" in issue:
-                for pattern in self.PREACHY_PATTERNS:
-                    improved = improved.replace(pattern, "")
-            elif "客服腔" in issue:
-                for pattern in self.SERVICE_PATTERNS:
-                    improved = improved.replace(pattern, "")
-        
-        # 清理多余空白
-        import re
-        improved = re.sub(r'\n{3,}', '\n\n', improved)
-        improved = re.sub(r'\s{2,}', ' ', improved)
-        
-        return improved.strip()
-    
-    async def _llm_rewrite(
-        self,
-        reply: str,
-        issues: list[str],
-        mode: str,
-    ) -> str:
-        """使用 LLM 进行整句重写。"""
-        issues_text = "\n".join(f"- {issue}" for issue in issues)
-        
-        messages = [
-            {"role": "system", "content": "你是一个回复改写专家。根据问题列表重写回复，保持原意但修复所有问题。只输出改写后的回复，不要解释。"},
-            {"role": "user", "content": f"""请重写以下回复，修复这些问题：
-
-【问题列表】
-{issues_text}
-
-【当前模式】{mode}
-
-【原回复】
-{reply}
-
-【要求】
-- 保持原意和情感
-- 像朋友一样自然说话
-- 不要模板腔、不要客服腔
-- 单轮最多一个问题
-- 不要括号动作描述
-- 不自称AI
-
-请直接输出改写后的回复："""},
-        ]
-        
-        return await self._runtime.call("review", messages)
-    
-    def _check_template_smell(self, reply: str) -> list[str]:
+    def _check_bad_patterns(self, reply: str) -> list[str]:
+        """检测本科生陪伴场景下的坏味道。"""
         issues = []
-        for pattern in self.TEMPLATE_PATTERNS:
-            if pattern in reply:
-                issues.append(f"模板味：包含'{pattern}'")
+        for category, patterns in self.BAD_PATTERNS.items():
+            for pattern in patterns:
+                if pattern in reply:
+                    issues.append(f"{category}：包含'{pattern}'")
+                    break  # 每个类别只报一次
         return issues
     
+    def _check_template_smell(self, reply: str) -> list[str]:
+        """兼容旧接口，合并到 _check_bad_patterns。"""
+        return self._check_bad_patterns(reply)
+    
     def _check_preachy(self, reply: str) -> list[str]:
+        """兼容旧接口。"""
         issues = []
-        for pattern in self.PREACHY_PATTERNS:
+        for pattern in self.BAD_PATTERNS.get("teacher_preaching_tone", []):
             if pattern in reply:
-                issues.append(f"说教味：包含'{pattern}'")
+                issues.append(f"teacher_preaching_tone：包含'{pattern}'")
+                break
         return issues
     
     def _check_service_tone(self, reply: str) -> list[str]:
+        """兼容旧接口。"""
         issues = []
-        for pattern in self.SERVICE_PATTERNS:
+        for pattern in self.BAD_PATTERNS.get("customer_service_tone", []):
             if pattern in reply:
-                issues.append(f"客服腔：包含'{pattern}'")
+                issues.append(f"customer_service_tone：包含'{pattern}'")
+                break
         return issues
     
     def _check_wrong_mode(self, reply: str, mode: str) -> list[str]:
@@ -566,6 +498,23 @@ class ResponseJudge:
         question_count = reply.count("?") + reply.count("？")
         if question_count >= 2:
             issues.append(f"追问过多：单轮{question_count}个问题")
+        
+        # 单个问题但明显是为了硬延续对话
+        trailing_question_patterns = [
+            "要不要",
+            "是不是",
+            "怎么突然",
+            "有没有",
+            "还要不要",
+            "对吧",
+            "该不会",
+            "顺便",
+        ]
+        stripped = reply.strip()
+        if question_count == 1 and stripped.endswith(("?", "？")):
+            tail = stripped[-40:]
+            if any(pattern in tail for pattern in trailing_question_patterns):
+                issues.append("硬接反问：结尾为了延续对话强行补问句")
         
         # 敏感问题
         sensitive_patterns = [
