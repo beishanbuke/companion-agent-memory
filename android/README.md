@@ -14,6 +14,7 @@ com.beishanbuke.jiangjiang
 - 记忆看板：读取 `GET /api/state`
 - 角色卡：读取、切换、创建角色卡，对接 `/api/cards/*`
 - 同 Wi-Fi 调试：App 内可配置后端地址
+- GitHub Actions：推送 `android/**` 后自动构建 debug APK；推送 `android-v*` tag 时自动创建 Release
 
 ## 同 Wi-Fi 调试
 
@@ -50,3 +51,16 @@ com.beishanbuke.jiangjiang
 - 不要把 OpenAI/Kimi/火山/Deepgram 等密钥放进 Android App。App 只连接你的本地后端，密钥继续留在后端 `.env`。
 - 当前为局域网调试版，`AndroidManifest.xml` 已启用 cleartext HTTP 以支持 `http://局域网IP:8765`。
 - 发布正式版时建议改为 HTTPS 后端，并关闭全局 cleartext。
+
+## GitHub 构建与发布
+
+推送到 `main` 后，GitHub Actions 会构建 debug APK，并在 workflow artifact 里提供 `jiangjiang-debug-apk`。
+
+发布一个 GitHub Release：
+
+```bash
+git tag android-v0.1.0
+git push origin android-v0.1.0
+```
+
+tag 推送后，Actions 会把 `app-debug.apk` 附到 Release。当前 APK 是调试签名，适合同 Wi-Fi 真机调试；正式分发前需要配置 release signing。
