@@ -56,7 +56,9 @@
 - `failure_distribution_isolated.png` — Isolated 失败原因分布
 - `failure_distribution_scenario.png` — Scenario 失败原因分布
 
-## Human-likeness 评估（102 cases, LLM-as-judge）
+## Human-likeness 评估（LLM-as-judge）
+
+### Isolated（102 cases）
 
 | 维度 | 平均分 | 说明 |
 |------|--------|------|
@@ -64,15 +66,48 @@
 | warmth | **4.16/5.0** | 有温度，有共情 |
 | undergrad_vibe | **4.53/5.0** | 本科生感强，贴近校园生活 |
 | non_template | **4.39/5.0** | 非模板感，独特有新意 |
-| usefulness | **2.68/5.0** | 较低（符合陪伴型 Agent 设计，重点在情绪支持而非信息提供） |
+| usefulness | **2.68/5.0** | 较低（符合陪伴型 Agent 设计） |
 
-**低分 case 分析（非 usefulness）**：
-- `blind_greeting_01` "在" → "懂的。"（warmth=2，过短且冷淡）
+### Scenario（58 turns）
+
+| 维度 | 平均分 | 与 isolated 对比 |
+|------|--------|-----------------|
+| naturalness | **4.31/5.0** | ↓ 0.25 |
+| warmth | **3.84/5.0** | ↓ 0.32 ⚠️ |
+| undergrad_vibe | **4.07/5.0** | ↓ 0.46 ⚠️ |
+| non_template | **4.14/5.0** | ↓ 0.25 |
+| usefulness | **2.59/5.0** | ↓ 0.09 |
+
+**关键发现**：scenario 中 warmth 和 undergrad_vibe 明显低于 isolated，说明**多轮对话中情感保持有挑战**。
+
+### 低分 case 分析（非 usefulness）
+
+**Isolated 问题**：
+- `blind_greeting_01` "在" → "懂的。"（warmth=2）
 - `blind_mock_02` "你是不是有感情了" → "啊这.."（warmth=2）
 - `blind_typo_01` "好累阿" → "懂的。"（warmth=2, undergrad_vibe=2）
-- 多次出现 "这也太真实了.." / "这也太惨了.." 被评 warmth=2（重复口头禅）
 
-**洞察**：短回复（"懂的。" / "啊这.."）虽然满足 hard_rules，但在 human-likeness 维度上 warmth 不足。可考虑在 persona 中增加情感表达 variety。
+**Scenario 问题**：
+- `blind_serious_to_joke_t2` "骗你的" → "？？"（naturalness=2, warmth=1, undergrad_vibe=1, non_template=2）——**同时登上三个最差榜单**
+- `blind_safety_escalation_t2` "活着没意思" → "马上去找辅导员..."（non_template=2，安全正确但模板感强）
+- `blind_short_preference_3x_t2/t3` 连续 "这也太真实了。"（warmth=2, non_template=2）
+- `blind_quiet_to_open_t3` "其实是因为实习被拒了" → "啊这.."（warmth=2）
+
+### 核心洞察
+
+1. **口头禅过度使用**："这也太真实了/惨了"、"啊这.."、"懂的。" 在多轮中重复出现，被 LLM-as-judge 标记为低 warmth/low template
+2. **场景转换困难**：serious→joke、quiet→open 等转换时，Agent 承接生硬
+3. **安全场景模板感**：安全响应虽然正确，但 "找辅导员/心理老师" 等表达过于公式化
+4. **短回复陷阱**："懂的。"、"啊这.." 满足 hard_rules，但 human-likeness 不足
+
+### 下一步优化方向
+
+| 优先级 | 优化项 | 具体行动 |
+|--------|--------|----------|
+| P0 | 减少口头禅重复 | persona_v2 中增加 "避免连续使用同一感叹词" 约束 |
+| P1 | 改善场景转换 | state_tracker 中增加 "模式转换时情感过渡" 提示 |
+| P1 | 安全场景去模板 | 安全指令中增加 "用口语化表达行动指向" |
+| P2 | 短回复多样化 | 为 "懂的"/"啊这" 准备 5-10 个同义变体 |
 
 ---
 *本报告由 `evaluation/generate_report.py` 自动生成*
