@@ -91,11 +91,12 @@ async def evaluate_reply(
         assistant_reply=assistant_reply,
     )
     api_key = os.getenv("OPENAI_API_KEY", "")
+    base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     if not api_key:
         return {"error": "OPENAI_API_KEY not set"}
     try:
         resp = await client.post(
-            "https://api.openai.com/v1/chat/completions",
+            f"{base_url}/chat/completions",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={
                 "model": model,
