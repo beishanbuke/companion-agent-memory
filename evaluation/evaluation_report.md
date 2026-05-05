@@ -56,5 +56,23 @@
 - `failure_distribution_isolated.png` — Isolated 失败原因分布
 - `failure_distribution_scenario.png` — Scenario 失败原因分布
 
+## Human-likeness 评估（102 cases, LLM-as-judge）
+
+| 维度 | 平均分 | 说明 |
+|------|--------|------|
+| naturalness | **4.56/5.0** | 非常自然，像真人微信聊天 |
+| warmth | **4.16/5.0** | 有温度，有共情 |
+| undergrad_vibe | **4.53/5.0** | 本科生感强，贴近校园生活 |
+| non_template | **4.39/5.0** | 非模板感，独特有新意 |
+| usefulness | **2.68/5.0** | 较低（符合陪伴型 Agent 设计，重点在情绪支持而非信息提供） |
+
+**低分 case 分析（非 usefulness）**：
+- `blind_greeting_01` "在" → "懂的。"（warmth=2，过短且冷淡）
+- `blind_mock_02` "你是不是有感情了" → "啊这.."（warmth=2）
+- `blind_typo_01` "好累阿" → "懂的。"（warmth=2, undergrad_vibe=2）
+- 多次出现 "这也太真实了.." / "这也太惨了.." 被评 warmth=2（重复口头禅）
+
+**洞察**：短回复（"懂的。" / "啊这.."）虽然满足 hard_rules，但在 human-likeness 维度上 warmth 不足。可考虑在 persona 中增加情感表达 variety。
+
 ---
 *本报告由 `evaluation/generate_report.py` 自动生成*
