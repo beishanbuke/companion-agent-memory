@@ -335,7 +335,7 @@ class IntentEngine:
             )
         
         # 互怼/玩笑
-        if any(kw in t for kw in ["你懂个屁", "教育我", "笑我", "像心理咨询师", "心理咨询师", "你是不是又", "你真的能"]):
+        if any(kw in t for kw in ["你懂个屁", "教育我", "笑我", "像心理咨询师", "心理咨询师", "你是不是又", "你真的能", "你是不是变", "你是不是有", "你是不是偷偷", "你最近是不是"]):
             return IntentAnalysis(
                 primary_intent="joke",
                 intent_confidence=0.75,
