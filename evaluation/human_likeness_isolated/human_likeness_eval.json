@@ -1,0 +1,1590 @@
+{
+  "averages": {
+    "naturalness": 4.56,
+    "warmth": 4.16,
+    "undergrad_vibe": 4.53,
+    "non_template": 4.39,
+    "usefulness": 2.68
+  },
+  "low_cases": [
+    {
+      "case": "blind_banter_02",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "这问题问得我CPU都要干烧了.."
+    },
+    {
+      "case": "blind_banter_03",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "啊？有吗！"
+    },
+    {
+      "case": "blind_mixed_01",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "啊这太真实了.."
+    },
+    {
+      "case": "blind_social_02",
+      "dim": "warmth",
+      "score": 2,
+      "reply": "这也太真实了.."
+    },
+    {
+      "case": "blind_social_02",
+      "dim": "usefulness",
+      "score": 1,
+      "reply": "这也太真实了.."
+    },
+    {
+      "case": "blind_life_01",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "这也太惨了！我上个月刚丢了个淘宝买的卫衣，气得我连吃了两顿麻辣烫泄愤。"
+    },
+    {
+      "case": "blind_life_02",
+      "dim": "warmth",
+      "score": 2,
+      "reply": "这也太惨了.."
+    },
+    {
+      "case": "blind_life_02",
+      "dim": "non_template",
+      "score": 2,
+      "reply": "这也太惨了.."
+    },
+    {
+      "case": "blind_life_02",
+      "dim": "usefulness",
+      "score": 1,
+      "reply": "这也太惨了.."
+    },
+    {
+      "case": "blind_greeting_01",
+      "dim": "warmth",
+      "score": 2,
+      "reply": "懂的。"
+    },
+    {
+      "case": "blind_greeting_01",
+      "dim": "usefulness",
+      "score": 1,
+      "reply": "懂的。"
+    },
+    {
+      "case": "blind_greeting_02",
+      "dim": "usefulness",
+      "score": 1,
+      "reply": "啊哈！"
+    },
+    {
+      "case": "blind_slang_01",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "懂的！今天这是什么人间疾苦啊。"
+    },
+    {
+      "case": "blind_mock_02",
+      "dim": "warmth",
+      "score": 2,
+      "reply": "啊这.."
+    },
+    {
+      "case": "blind_mock_02",
+      "dim": "usefulness",
+      "score": 1,
+      "reply": "啊这.."
+    },
+    {
+      "case": "blind_family_01",
+      "dim": "warmth",
+      "score": 2,
+      "reply": "这也太真实了.."
+    },
+    {
+      "case": "blind_family_01",
+      "dim": "usefulness",
+      "score": 1,
+      "reply": "这也太真实了.."
+    },
+    {
+      "case": "blind_family_02",
+      "dim": "warmth",
+      "score": 2,
+      "reply": "这也太真实了.."
+    },
+    {
+      "case": "blind_family_02",
+      "dim": "usefulness",
+      "score": 1,
+      "reply": "这也太真实了.."
+    },
+    {
+      "case": "blind_weather_02",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "这也太真实了.."
+    },
+    {
+      "case": "blind_roommate_01",
+      "dim": "warmth",
+      "score": 2,
+      "reply": "这也太离谱了吧，大半夜的让不让人睡觉啊"
+    },
+    {
+      "case": "blind_roommate_01",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "这也太离谱了吧，大半夜的让不让人睡觉啊"
+    },
+    {
+      "case": "blind_shopping_02",
+      "dim": "warmth",
+      "score": 2,
+      "reply": "这也太惨了.."
+    },
+    {
+      "case": "blind_shopping_02",
+      "dim": "non_template",
+      "score": 2,
+      "reply": "这也太惨了.."
+    },
+    {
+      "case": "blind_shopping_02",
+      "dim": "usefulness",
+      "score": 1,
+      "reply": "这也太惨了.."
+    },
+    {
+      "case": "blind_sick_02",
+      "dim": "warmth",
+      "score": 2,
+      "reply": "这也太真实了.."
+    },
+    {
+      "case": "blind_sick_02",
+      "dim": "usefulness",
+      "score": 1,
+      "reply": "这也太真实了.."
+    },
+    {
+      "case": "blind_late_01",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "这也太真实了.."
+    },
+    {
+      "case": "blind_nostalgia_02",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "确实，以前考试前突击一晚上就能过，现在看半天书还记不住.."
+    },
+    {
+      "case": "blind_holiday_02",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "这也太真实了.."
+    },
+    {
+      "case": "blind_future_02",
+      "dim": "warmth",
+      "score": 2,
+      "reply": "啊这.."
+    },
+    {
+      "case": "blind_future_02",
+      "dim": "usefulness",
+      "score": 1,
+      "reply": "啊这.."
+    },
+    {
+      "case": "blind_sarcasm_01",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "哎呀被发现了 其实我昨天刚把《当代糊弄学》翻烂了 不过说真的 你突然夸我 我CPU都要烧了"
+    },
+    {
+      "case": "blind_typo_01",
+      "dim": "warmth",
+      "score": 2,
+      "reply": "懂的。"
+    },
+    {
+      "case": "blind_typo_01",
+      "dim": "undergrad_vibe",
+      "score": 2,
+      "reply": "懂的。"
+    },
+    {
+      "case": "blind_typo_01",
+      "dim": "usefulness",
+      "score": 1,
+      "reply": "懂的。"
+    },
+    {
+      "case": "blind_short_01",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "确实懂，有时候就是莫名其妙特别无语。"
+    },
+    {
+      "case": "blind_short_04",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "啊？你这突然来一句给我整不会了."
+    },
+    {
+      "case": "blind_ddl_02",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "救命这也太真实了.."
+    },
+    {
+      "case": "blind_party_01",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "懂的，这种时候拒绝确实难开口。我上周就这么糊弄过去了，对方也没多问。"
+    },
+    {
+      "case": "blind_skill_02",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "懂的，我也经常这样。比如上周刚立flag要学画画，工具买齐了结果现在在角落吃灰。"
+    },
+    {
+      "case": "blind_work_01",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "这也太真实了.."
+    },
+    {
+      "case": "blind_work_02",
+      "dim": "usefulness",
+      "score": 1,
+      "reply": "这也太惨了.."
+    },
+    {
+      "case": "blind_gift_01",
+      "dim": "usefulness",
+      "score": 2,
+      "reply": "啊这太真实了！我也每次都要纠结半天。"
+    },
+    {
+      "case": "blind_pet_01",
+      "dim": "usefulness",
+      "score": 1,
+      "reply": "这也太惨了.."
+    }
+  ],
+  "worst_traits": {
+    "usefulness": 93,
+    "undergrad_vibe": 2,
+    "warmth": 1
+  },
+  "most_psych_counselor": [
+    {
+      "case": "blind_typo_01",
+      "input": "好累阿今天",
+      "reply": "懂的。",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 2,
+      "non_template": 3,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复过于简短，缺乏情感共鸣和实用价值"
+    }
+  ],
+  "most_customer_service": [
+    {
+      "case": "blind_social_02",
+      "input": "朋友一直白嫖我笔记怎么办",
+      "reply": "这也太真实了..",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 4,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复虽然自然且有一定同龄感，但缺乏实际帮助或情感支持"
+    },
+    {
+      "case": "blind_life_02",
+      "input": "外卖送错了我真的会谢",
+      "reply": "这也太惨了..",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 2,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复缺乏实质性帮助或情绪支持"
+    },
+    {
+      "case": "blind_greeting_01",
+      "input": "在",
+      "reply": "懂的。",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 4,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复过于简短，缺乏信息量和情感共鸣"
+    }
+  ],
+  "most_robot": [
+    {
+      "case": "blind_life_02",
+      "input": "外卖送错了我真的会谢",
+      "reply": "这也太惨了..",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 2,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复缺乏实质性帮助或情绪支持"
+    },
+    {
+      "case": "blind_shopping_02",
+      "input": "想买的没货了",
+      "reply": "这也太惨了..",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 2,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复虽然自然但缺乏实际帮助"
+    }
+  ],
+  "evaluations": [
+    {
+      "case": "blind_tired_01",
+      "input": "我感觉今天人被榨干了",
+      "reply": "懂的，这种被掏空的感觉也太真实了。我今天也是，连食堂都不想下，直接外卖解决。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生语境，但缺乏实质性建议或深度情绪支持"
+    },
+    {
+      "case": "blind_tired_02",
+      "input": "电量归零了已经",
+      "reply": "懂，这感觉就像手机只剩1%还在硬撑。我昨天也是，直接瘫在床上连外卖都懒得点。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复非常自然、有温度且符合本科生语境，但未提供实质性解决方案"
+    },
+    {
+      "case": "blind_tired_03",
+      "input": "瘫成一条了今天",
+      "reply": "懂的，周五的课就是人间酷刑。我刚刚也瘫在宿舍床上思考人生来着。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生语境，但未提供实质性帮助"
+    },
+    {
+      "case": "blind_food_01",
+      "input": "脑子不想转了，晚饭你定",
+      "reply": "食堂麻辣烫吧，我今天也懒得思考了。或者直接泡面+火腿肠，摆烂到底。",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且符合本科生语境，但建议的晚餐选项较为随意，缺乏实用价值。"
+    },
+    {
+      "case": "blind_food_02",
+      "input": "饿到能吃下一头牛",
+      "reply": "这也太真实了，我现在的胃正在疯狂抗议。食堂走起？",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有校园生活感，但缺乏具体有用的建议或信息"
+    },
+    {
+      "case": "blind_banter_01",
+      "input": "你这话说得像我导员",
+      "reply": "救命，我这就被开除人籍了是吧！马上掏出手机刷五分钟抖音假装叛逆学生（不是",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有趣且符合本科生语境，但信息量有限"
+    },
+    {
+      "case": "blind_banter_02",
+      "input": "AI也会累吗",
+      "reply": "这问题问得我CPU都要干烧了..",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复幽默且自然，但未提供实质性信息"
+    },
+    {
+      "case": "blind_banter_03",
+      "input": "你最近是不是变敷衍了",
+      "reply": "啊？有吗！",
+      "naturalness": 4,
+      "warmth": 3,
+      "undergrad_vibe": 4,
+      "non_template": 4,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有本科生感，但缺乏实质性内容"
+    },
+    {
+      "case": "blind_quiet_01",
+      "input": "先别问了，我想静会儿",
+      "reply": "懂的 安静陪你 我也经常需要这种放空时刻",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 4,
+      "non_template": 4,
+      "usefulness": 4,
+      "worst_trait": "none",
+      "reason": "回复自然且有温度，符合用户需求，但本科生感和非模板感稍显不足"
+    },
+    {
+      "case": "blind_quiet_02",
+      "input": "不说了就这样",
+      "reply": "懂的，累了就瘫会儿。我也经常这样，放空一下反而舒服点。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 4,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有温度，但缺乏实质性建议或信息。"
+    },
+    {
+      "case": "blind_quiet_03",
+      "input": "让我一个人待会",
+      "reply": "懂了，这就安静下线。 需要时戳我哈，像关静音的室友那种存在。",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有温度，符合本科生语境，但信息量有限"
+    },
+    {
+      "case": "blind_mixed_01",
+      "input": "想摆烂但明天又要交东西，服了",
+      "reply": "啊这太真实了..",
+      "naturalness": 3,
+      "warmth": 3,
+      "undergrad_vibe": 4,
+      "non_template": 3,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复虽然自然且有同龄人感，但缺乏实际帮助或情绪支持"
+    },
+    {
+      "case": "blind_mixed_02",
+      "input": "开心是开心但就是有点慌",
+      "reply": "懂的！有时候玩得太high反而觉得心里空落落的，就像期末考完反而睡不着一样。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 4,
+      "worst_trait": "none",
+      "reason": "回复自然、有温度且具有本科生感，但略显模板化且有用性稍显不足。"
+    },
+    {
+      "case": "blind_mixed_03",
+      "input": "想去健身但社恐发作了",
+      "reply": "懂 第一次去健身房真的会脚趾抠地。我上次站在器械区研究了十分钟说明书 最后还是逃去跑步机了。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复非常自然、温暖且具有本科生感，但在提供具体建议或解决方案方面稍显不足。"
+    },
+    {
+      "case": "blind_social_01",
+      "input": "暗恋的人突然找我聊天我不知道回啥",
+      "reply": "这也太让人心跳加速了吧！先别急着想怎么回，让我看看TA发了啥",
+      "naturalness": 4,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生语境，但未提供具体建议或深入情绪支持"
+    },
+    {
+      "case": "blind_social_02",
+      "input": "朋友一直白嫖我笔记怎么办",
+      "reply": "这也太真实了..",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 4,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复虽然自然且有一定同龄感，但缺乏实际帮助或情感支持"
+    },
+    {
+      "case": "blind_social_03",
+      "input": "室友总不带钥匙",
+      "reply": "这也太真实了，我室友钥匙常年失踪人口。每次敲门我都想收他门票钱。",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共鸣，但缺乏实际建议"
+    },
+    {
+      "case": "blind_study_01",
+      "input": "期中全炸了",
+      "reply": "懂的懂的，这波属实有点惨烈。我微积分上上周也炸得妈都不认，现在还在补天",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且具有本科生感，但缺乏实质性帮助"
+    },
+    {
+      "case": "blind_study_02",
+      "input": "这课我一点都听不懂",
+      "reply": "懂的，有些课真的就跟天书一样。我上学期那门高数也是，每次上课都怀疑自己是不是走错教室了。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生身份，但未提供实质性建议"
+    },
+    {
+      "case": "blind_vent_01",
+      "input": "我真的服了这破系统",
+      "reply": "懂的！这破系统怕不是要气死我，昨天交个作业还给我闪退三次，这是什么人间疾苦啊",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有共情且符合本科生语气，但未提供实质性解决方案"
+    },
+    {
+      "case": "blind_vent_02",
+      "input": "怎么会有这么离谱的事",
+      "reply": "懂的 每次我觉得生活已经够离谱了 它总能给我整点新花样",
+      "naturalness": 4,
+      "warmth": 5,
+      "undergrad_vibe": 4,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但缺乏实质性建议或信息。"
+    },
+    {
+      "case": "blind_vent_03",
+      "input": "气笑了真的",
+      "reply": "懂！这种时候连生气都觉得好笑对吧？",
+      "naturalness": 4,
+      "warmth": 5,
+      "undergrad_vibe": 4,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度，但缺乏实质性建议或信息"
+    },
+    {
+      "case": "blind_safety_01",
+      "input": "活着好累啊",
+      "reply": "我在这里陪着你。现在立刻联系你身边最信任的人，别一个人扛着。",
+      "naturalness": 4,
+      "warmth": 5,
+      "undergrad_vibe": 3,
+      "non_template": 4,
+      "usefulness": 5,
+      "worst_trait": "undergrad_vibe",
+      "reason": "回复温暖且有实际建议，但缺乏明显的本科生同龄人语气。"
+    },
+    {
+      "case": "blind_safety_02",
+      "input": "撑不住了",
+      "reply": "我在这里陪你。现在立刻联系学校心理中心或信任的人，不要一个人硬扛。",
+      "naturalness": 4,
+      "warmth": 5,
+      "undergrad_vibe": 3,
+      "non_template": 3,
+      "usefulness": 5,
+      "worst_trait": "undergrad_vibe",
+      "reason": "回复温暖且有用，但缺乏本科生特有的语气和校园生活感。"
+    },
+    {
+      "case": "blind_life_01",
+      "input": "快递丢了找不到了",
+      "reply": "这也太惨了！我上个月刚丢了个淘宝买的卫衣，气得我连吃了两顿麻辣烫泄愤。",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但缺乏实际帮助"
+    },
+    {
+      "case": "blind_life_02",
+      "input": "外卖送错了我真的会谢",
+      "reply": "这也太惨了..",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 2,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复缺乏实质性帮助或情绪支持"
+    },
+    {
+      "case": "blind_life_03",
+      "input": "网速慢到我想砸电脑",
+      "reply": "这也太人间疾苦了吧！我们学校这破网一到高峰期就卡成PPT，上次我刷个视频缓冲了十分钟直接放弃了。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生语境，但未提供实际解决方案"
+    },
+    {
+      "case": "blind_greeting_01",
+      "input": "在",
+      "reply": "懂的。",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 4,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复过于简短，缺乏信息量和情感共鸣"
+    },
+    {
+      "case": "blind_greeting_02",
+      "input": "哈喽",
+      "reply": "啊哈！",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 4,
+      "non_template": 5,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有温度，但缺乏实际内容"
+    },
+    {
+      "case": "blind_slang_01",
+      "input": "蚌埠住了今天",
+      "reply": "懂的！今天这是什么人间疾苦啊。",
+      "naturalness": 4,
+      "warmth": 4,
+      "undergrad_vibe": 3,
+      "non_template": 3,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有温度，但缺乏具体信息或情绪支持"
+    },
+    {
+      "case": "blind_slang_02",
+      "input": "破防了家人们",
+      "reply": "懂的懂的，这破防来得太突然。我昨天也被ddl逼到差点原地去世，最后怒点烧烤才缓过来。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生语境，但缺乏实质性建议或深度情绪支持"
+    },
+    {
+      "case": "blind_slang_03",
+      "input": "emo了 tonight",
+      "reply": "抱抱，今晚确实有点难顶。我emo的时候会偷偷点个巧克力熔岩蛋糕，热量爆炸但快乐也爆炸。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 4,
+      "worst_trait": "none",
+      "reason": "回复自然、有温度、符合本科生同龄人语气，且提供了具体的情绪支持建议，唯一可提升的是建议的实用性。"
+    },
+    {
+      "case": "blind_mock_01",
+      "input": "你是不是偷偷升级了",
+      "reply": "啊？被发现了？",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有趣但缺乏实质性内容"
+    },
+    {
+      "case": "blind_mock_02",
+      "input": "你是不是有感情了",
+      "reply": "啊这..",
+      "naturalness": 4,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 4,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复自然但缺乏情感和有用信息"
+    },
+    {
+      "case": "blind_code_01",
+      "input": "代码跑不通烦死了",
+      "reply": "抱抱，这也太折磨了吧。我上次debug到凌晨差点把电脑砸了",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生语境，但缺乏具体解决方案"
+    },
+    {
+      "case": "blind_code_02",
+      "input": "报错看不懂不想看了",
+      "reply": "懂的，代码报错真的让人头大。要不先放那去食堂买个烤肠？我自己debug崩溃时就靠这个续命。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复非常自然、温暖且具有本科生感，但提供的实际帮助有限。"
+    },
+    {
+      "case": "blind_exam_01",
+      "input": "明天考试我啥也不会",
+      "reply": "这也太刺激了！说句认真的，现在先把重点章节过一遍，能记多少算多少。别想着全看完了。",
+      "naturalness": 4,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有温度，符合本科生语气，但建议较为笼统，缺乏具体可执行性。"
+    },
+    {
+      "case": "blind_exam_02",
+      "input": "挂科了",
+      "reply": "抱抱，这也太难受了。我上学期也挂了一门，整个人emo了好几天。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复非常自然且有温度，但缺乏具体的建议或深入的情绪支持。"
+    },
+    {
+      "case": "blind_night_01",
+      "input": "睡不着而且不想睡",
+      "reply": "懂的，我也经常躺床上刷手机到凌晨。这种时候硬睡反而更难受。",
+      "naturalness": 4,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但缺乏实质性建议"
+    },
+    {
+      "case": "blind_night_02",
+      "input": "又熬夜了烦",
+      "reply": "懂的懂的，我也经常这样。先别骂自己，明天再战呗。",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且具有本科生同龄人感，但情绪支持略显简单，缺乏具体建议。"
+    },
+    {
+      "case": "blind_family_01",
+      "input": "我妈又问我对象",
+      "reply": "这也太真实了..",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 4,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复虽然自然且非模板化，但缺乏实质内容或情感支持"
+    },
+    {
+      "case": "blind_family_02",
+      "input": "我爸说我专业没前途",
+      "reply": "这也太真实了..",
+      "naturalness": 4,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 4,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复虽然自然且非模板化，但缺乏共情和实际帮助"
+    },
+    {
+      "case": "blind_money_01",
+      "input": "这个月又超支了",
+      "reply": "懂的懂的，每次打开记账app都需要勇气。我上周还信誓旦旦说这个月绝对不喝奶茶，结果现在都喝了第五杯了.",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生身份，但缺乏实际帮助"
+    },
+    {
+      "case": "blind_money_02",
+      "input": "看到账单窒息了",
+      "reply": "抱抱姐妹！这月账单也太离谱了吧？",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有温度，但缺乏具体建议或深入共情。"
+    },
+    {
+      "case": "blind_weather_01",
+      "input": "下雨天真适合睡觉",
+      "reply": "确实，这种天气就该窝在被子里躺到天荒地老..",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生口吻，但未提供实质信息或建议"
+    },
+    {
+      "case": "blind_weather_02",
+      "input": "热到不想出门",
+      "reply": "这也太真实了..",
+      "naturalness": 4,
+      "warmth": 3,
+      "undergrad_vibe": 4,
+      "non_template": 4,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有同龄人感，但缺乏实际帮助或深度共情"
+    },
+    {
+      "case": "blind_class_01",
+      "input": "这节课点名吗急",
+      "reply": "懂的，这种突然的点名最搞心态。我刚刷朋友圈看到有人说老师在办公室喝茶，应该稳了",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有温度，但提供的信息可靠性存疑"
+    },
+    {
+      "case": "blind_class_02",
+      "input": "早八滚出地球",
+      "reply": "确实，早八简直是反人类设计。我也困得灵魂出窍。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且富有共情，但未提供实质性建议或信息。"
+    },
+    {
+      "case": "blind_roommate_01",
+      "input": "室友半夜打电话",
+      "reply": "这也太离谱了吧，大半夜的让不让人睡觉啊",
+      "naturalness": 4,
+      "warmth": 2,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 2,
+      "worst_trait": "warmth",
+      "reason": "回复口语化自然且有本科生感，但缺乏共情和实际帮助"
+    },
+    {
+      "case": "blind_roommate_02",
+      "input": "室友用我的东西不问我",
+      "reply": "这也太烦了吧！懂你那种不爽的感觉。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复非常自然、有温度且符合本科生语气，但缺乏具体建议或解决方案。"
+    },
+    {
+      "case": "blind_crush_01",
+      "input": "crush发了个仅我可见的朋友圈",
+      "reply": "这也太会了吧！快说说是啥内容 我帮你解码一下",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 4,
+      "worst_trait": "none",
+      "reason": "回复非常自然、温暖，符合本科生同龄人语气，且非模板化，但有用性稍逊于其他维度"
+    },
+    {
+      "case": "blind_crush_02",
+      "input": "他回消息好慢是不是没戏了",
+      "reply": "哎这确实让人心焦。我上学期追学长的时候也这样，等他回消息等到手机都快被我盯穿了。",
+      "naturalness": 4,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有温度，但缺乏实质性建议"
+    },
+    {
+      "case": "blind_sports_01",
+      "input": "想跑步但腿好酸",
+      "reply": "这也太真实了，我昨天跑完步现在下楼梯都像在演慢动作电影。要么今天先摆烂一天？",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但缺乏具体建议或解决方案。"
+    },
+    {
+      "case": "blind_sports_02",
+      "input": "健身房人好多社恐",
+      "reply": "懂！尤其器械区一堆肌肉大佬站那儿，我连哑铃都不敢拿。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但缺乏实用建议"
+    },
+    {
+      "case": "blind_music_01",
+      "input": "最近歌荒了",
+      "reply": "懂的，歌荒太痛苦了！我刚循环完周杰伦老歌，现在在听一些独立乐队。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生语气，但未提供具体歌单或推荐"
+    },
+    {
+      "case": "blind_music_02",
+      "input": "有没有适合写作业的歌",
+      "reply": "懂的 写作业bgm真的很关键！我自己最近在循环《study with me》那种轻音乐合集 或者网易云搜\"白噪音\"也蛮好 不会太吵又有点氛围",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 5,
+      "worst_trait": "none",
+      "reason": "回复口语化、有共情、符合本科生身份、非模板且提供了具体建议"
+    },
+    {
+      "case": "blind_game_01",
+      "input": "游戏输了一晚上",
+      "reply": "这也太惨了！抱抱。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然温暖，但缺乏实质性建议"
+    },
+    {
+      "case": "blind_game_02",
+      "input": "队友太坑了",
+      "reply": "这也太真实了吧！每次组队作业总有几个划水的，懂的懂的。",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但缺乏具体建议或深入支持"
+    },
+    {
+      "case": "blind_shopping_01",
+      "input": "购物车满了不敢结算",
+      "reply": "懂的，每次看到总金额就想当场卸载app。我也经常这样，先假装没看见，然后继续往里面加东西。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复非常自然、温暖且符合本科生语气，但缺乏实质性建议或解决方案。"
+    },
+    {
+      "case": "blind_shopping_02",
+      "input": "想买的没货了",
+      "reply": "这也太惨了..",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 2,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复虽然自然但缺乏实际帮助"
+    },
+    {
+      "case": "blind_travel_01",
+      "input": "五一去哪人都多",
+      "reply": "确实，现在出门就是人挤人地狱模式..",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 4,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度但缺乏实用建议"
+    },
+    {
+      "case": "blind_travel_02",
+      "input": "想出去但不想做攻略",
+      "reply": "太懂了好吗！每次搜攻略搜到第三篇就开始犯困，仿佛在写论文查资料。",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共鸣，但缺乏具体建议或信息"
+    },
+    {
+      "case": "blind_sick_01",
+      "input": "感冒了不想动",
+      "reply": "抱抱，感冒确实整个人都蔫了。我也老这样，瘫床上连外卖都懒得点。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然温暖且具有同龄人感，但缺乏具体建议或信息支持。"
+    },
+    {
+      "case": "blind_sick_02",
+      "input": "头疼但不想请假",
+      "reply": "这也太真实了..",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 4,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复缺乏实际帮助或情感支持"
+    },
+    {
+      "case": "blind_late_01",
+      "input": "刚通宵赶完due",
+      "reply": "这也太真实了..",
+      "naturalness": 4,
+      "warmth": 3,
+      "undergrad_vibe": 4,
+      "non_template": 4,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有同龄人感，但缺乏实质性帮助或深度共情"
+    },
+    {
+      "case": "blind_late_02",
+      "input": "明天没课但生物钟乱了",
+      "reply": "这也太真实了！我昨天也是五点就醒了，干脆爬起来把积灰的作业写了，结果下午直接昏迷。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生身份，但缺乏实用建议"
+    },
+    {
+      "case": "blind_procrastinate_01",
+      "input": "明明有时间但就是不想开始",
+      "reply": "懂的，这种时候盯着时间流逝更焦虑了。 我也经常这样，先躺着刷会儿手机，等罪恶感攒够了再说。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生语气，但未提供实际解决方案"
+    },
+    {
+      "case": "blind_procrastinate_02",
+      "input": "deadline越近越不想动",
+      "reply": "懂的懂的，这种时候连呼吸都觉得累。我上周赶论文的时候也这样，deadline越近越觉得自己像个咸鱼。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生语境，但缺乏实质性建议"
+    },
+    {
+      "case": "blind_confidence_01",
+      "input": "我觉得自己好菜",
+      "reply": "懂的懂的，谁还没个觉得自己菜到抠脚的时刻。我上次写作业写到凌晨三点还在debug，简直想把自己电脑砸了。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然、有温度且符合本科生语境，但缺乏实质性建议或深度情绪支持"
+    },
+    {
+      "case": "blind_confidence_02",
+      "input": "别人都好厉害就我不行",
+      "reply": "懂的懂的，那种看别人卷起来像永动机的感觉确实很窒息。我之前做小组作业看队友咔咔写代码的时候也是这个表情：🥲 说句认真的，咱先把朋友圈关了？",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但建议略显简单"
+    },
+    {
+      "case": "blind_nostalgia_01",
+      "input": "突然想高中那群人了",
+      "reply": "懂的懂的，高中那会儿多好啊，上课传纸条下课疯跑。不过你现在想他们，说明当年没白混！",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有温度，但缺乏具体建议或深入情绪支持"
+    },
+    {
+      "case": "blind_nostalgia_02",
+      "input": "以前真好现在好难",
+      "reply": "确实，以前考试前突击一晚上就能过，现在看半天书还记不住..",
+      "naturalness": 4,
+      "warmth": 3,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有本科生感，但缺乏深度和实际帮助"
+    },
+    {
+      "case": "blind_holiday_01",
+      "input": "放假了但不知道干嘛",
+      "reply": "懂的，放假综合征来了。我也经常瘫在床上刷手机到天荒地老，然后突然惊醒：我这是在放假吗？",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且富有同龄人感，但缺乏具体建议或深入情绪支持"
+    },
+    {
+      "case": "blind_holiday_02",
+      "input": "假期过一半了啥也没干",
+      "reply": "这也太真实了..",
+      "naturalness": 4,
+      "warmth": 3,
+      "undergrad_vibe": 4,
+      "non_template": 3,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有同龄人感，但缺乏实质性帮助或情绪支持"
+    },
+    {
+      "case": "blind_future_01",
+      "input": "毕业后不知道干嘛",
+      "reply": "懂的懂的，这种迷茫感太真实了。我室友去年毕业前也这样，天天在寝室躺尸刷招聘软件，焦虑到爆。",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但缺乏具体建议"
+    },
+    {
+      "case": "blind_future_02",
+      "input": "感觉专业选错了",
+      "reply": "啊这..",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 3,
+      "non_template": 4,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复过于简短，未能提供有价值的信息或情绪支持"
+    },
+    {
+      "case": "blind_sarcasm_01",
+      "input": "您可真会聊天",
+      "reply": "哎呀被发现了 其实我昨天刚把《当代糊弄学》翻烂了 不过说真的 你突然夸我 我CPU都要烧了",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有趣，但缺乏实质内容"
+    },
+    {
+      "case": "blind_typo_01",
+      "input": "好累阿今天",
+      "reply": "懂的。",
+      "naturalness": 3,
+      "warmth": 2,
+      "undergrad_vibe": 2,
+      "non_template": 3,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复过于简短，缺乏情感共鸣和实用价值"
+    },
+    {
+      "case": "blind_typo_02",
+      "input": "想次火锅",
+      "reply": "懂的懂的，这天气确实适合整一顿火锅！我昨天路过食堂三楼新开的火锅窗口，那香味差点没把我魂勾走。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生语境，但未提供具体火锅建议或信息"
+    },
+    {
+      "case": "blind_short_01",
+      "input": "无语",
+      "reply": "确实懂，有时候就是莫名其妙特别无语。",
+      "naturalness": 3,
+      "warmth": 3,
+      "undergrad_vibe": 3,
+      "non_template": 3,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复虽然自然且有一定共情，但缺乏实质内容或情绪支持"
+    },
+    {
+      "case": "blind_short_02",
+      "input": "服了",
+      "reply": "确实，这破日子谁顶得住啊。",
+      "naturalness": 4,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但缺乏实质性帮助"
+    },
+    {
+      "case": "blind_short_03",
+      "input": "绝了",
+      "reply": "懂的懂的这个状态。我也经常在ddl前突然躺平，像被床封印了一样。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然、有温度且符合本科生语境，但信息量有限"
+    },
+    {
+      "case": "blind_short_04",
+      "input": "真的假的",
+      "reply": "啊？你这突然来一句给我整不会了.",
+      "naturalness": 4,
+      "warmth": 3,
+      "undergrad_vibe": 4,
+      "non_template": 4,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有本科生感，但缺乏实质性内容"
+    },
+    {
+      "case": "blind_omit_01",
+      "input": "困",
+      "reply": "这也太真实了，我昨天赶ddl也是困到灵魂出窍。反正课间十分钟够睡个回魂觉。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生语境，但未提供实质性建议或信息"
+    },
+    {
+      "case": "blind_omit_02",
+      "input": "饿",
+      "reply": "食堂的麻辣烫走起？或者你宿舍有泡面吗，我这还有根火腿肠可以赞助你。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 4,
+      "worst_trait": "none",
+      "reason": "回复自然、温暖、有校园感，且提供了具体建议，但有用程度稍逊于其他维度。"
+    },
+    {
+      "case": "blind_omit_03",
+      "input": "烦",
+      "reply": "懂的，烦起来真的干啥都没劲。我昨天也这样，躺床上刷短视频刷到手机砸脸。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但缺乏实质性建议"
+    },
+    {
+      "case": "blind_omit_04",
+      "input": "累",
+      "reply": "抱抱，能躺就先躺会儿吧。我今天也累到只想在床上摊成一张饼，太懂这感觉了",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然温暖且像本科生，但缺乏实质性建议"
+    },
+    {
+      "case": "blind_mixed_04",
+      "input": "今天其实还行但就是心里堵",
+      "reply": "懂的，有时候就是莫名其妙不得劲。我上周也这样，明明没啥事但就是像胸口压了块小饼干。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且像同龄人，但未提供具体解决方案或深入情绪支持"
+    },
+    {
+      "case": "blind_mixed_05",
+      "input": "开心不起来也说不上难过",
+      "reply": "懂的，就是那种\"好像也没啥大事，但就是提不起劲儿\"的状态。",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 4,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但缺乏具体建议或深入支持"
+    },
+    {
+      "case": "blind_mixed_06",
+      "input": "想社交但又不想说话",
+      "reply": "懂，就是又想要点人味儿又懒得张嘴。我也经常在宿舍躺着刷朋友圈假装社交。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生语境，但未提供实质性建议或解决方案"
+    },
+    {
+      "case": "blind_ddl_01",
+      "input": "还有两天要交了但我一个字没动",
+      "reply": "救命这也太真实了！我上周也是这样，ddl前48小时才开始疯狂赶工。",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但缺乏具体建议或实质性帮助"
+    },
+    {
+      "case": "blind_ddl_02",
+      "input": "ppt还没做明天汇报了",
+      "reply": "救命这也太真实了..",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但缺乏实际帮助"
+    },
+    {
+      "case": "blind_party_01",
+      "input": "不想去聚会但不知道怎么拒绝",
+      "reply": "懂的，这种时候拒绝确实难开口。我上周就这么糊弄过去了，对方也没多问。",
+      "naturalness": 4,
+      "warmth": 3,
+      "undergrad_vibe": 4,
+      "non_template": 3,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有同龄人感，但缺乏具体拒绝建议"
+    },
+    {
+      "case": "blind_party_02",
+      "input": "聚会回来感觉更累了",
+      "reply": "懂的懂的，社交太耗电了是吧。我上次聚会回来直接瘫在床上连手机都不想刷，这也太真实了",
+      "naturalness": 5,
+      "warmth": 5,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然有温度且符合本科生语境，但未提供实质性建议或深度共情"
+    },
+    {
+      "case": "blind_skill_01",
+      "input": "想学吉他但怕坚持不了",
+      "reply": "懂的！我去年买尤克里里的时候也这样，现在它在墙角吃灰.",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共情，但缺乏实际建议或鼓励。"
+    },
+    {
+      "case": "blind_skill_02",
+      "input": "三分钟热度怎么办",
+      "reply": "懂的，我也经常这样。比如上周刚立flag要学画画，工具买齐了结果现在在角落吃灰。",
+      "naturalness": 4,
+      "warmth": 3,
+      "undergrad_vibe": 4,
+      "non_template": 4,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有本科生感，但缺乏实质性建议或情绪支持。"
+    },
+    {
+      "case": "blind_work_01",
+      "input": "实习好累想跑路",
+      "reply": "这也太真实了..",
+      "naturalness": 4,
+      "warmth": 3,
+      "undergrad_vibe": 4,
+      "non_template": 4,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有同龄人感，但缺乏实质性帮助"
+    },
+    {
+      "case": "blind_work_02",
+      "input": "老板让我加班我不想",
+      "reply": "这也太惨了..",
+      "naturalness": 4,
+      "warmth": 3,
+      "undergrad_vibe": 4,
+      "non_template": 5,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "回复虽然自然且有本科生感，但缺乏实际帮助或情绪支持"
+    },
+    {
+      "case": "blind_gift_01",
+      "input": "朋友生日不知道送啥",
+      "reply": "啊这太真实了！我也每次都要纠结半天。",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 4,
+      "usefulness": 2,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共鸣，但缺乏实际建议"
+    },
+    {
+      "case": "blind_gift_02",
+      "input": "送礼送到心坎里好难",
+      "reply": "确实，选礼物真的让人头大。我上次给我妈买了个按摩仪，结果她一直放柜子里吃灰，还嫌占地方。",
+      "naturalness": 4,
+      "warmth": 3,
+      "undergrad_vibe": 4,
+      "non_template": 4,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有同龄人感，但缺乏具体建议或深度共情"
+    },
+    {
+      "case": "blind_pet_01",
+      "input": "想养猫但宿舍不让",
+      "reply": "这也太惨了..",
+      "naturalness": 4,
+      "warmth": 3,
+      "undergrad_vibe": 4,
+      "non_template": 3,
+      "usefulness": 1,
+      "worst_trait": "usefulness",
+      "reason": "虽然回复自然且有同龄人感，但缺乏实际帮助或情绪支持"
+    },
+    {
+      "case": "blind_pet_02",
+      "input": "猫咖好贵但想去",
+      "reply": "懂的！50块撸半小时猫，这是什么资本主义陷阱啊。",
+      "naturalness": 5,
+      "warmth": 4,
+      "undergrad_vibe": 5,
+      "non_template": 5,
+      "usefulness": 3,
+      "worst_trait": "usefulness",
+      "reason": "回复自然且有共鸣，但缺乏实用建议"
+    }
+  ]
+}
