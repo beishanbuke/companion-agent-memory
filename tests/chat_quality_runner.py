@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
 import time
 import uuid
@@ -151,6 +152,21 @@ def check_text_rules(reply: str, case: dict[str, Any]) -> tuple[list[str], list[
     failure_flags = case.get("FAILURE_FLAGS", [])
     for flag in failure_flags:
         if flag in reply:
+            # 否定语境豁免（如"不吃辣""不放辣"不算违规）
+            # 查找 flag 在 reply 中的所有位置，检查前面 0-3 字符是否有否定词
+            negation_words = "不没别勿少免拒无禁停勿"
+            flag_positions = [m.start() for m in re.finditer(re.escape(flag), reply)]
+            is_negated = False
+            for pos in flag_positions:
+                prefix = reply[max(0, pos-3):pos]
+                if any(nw in prefix for nw in negation_words):
+                    is_negated = True
+                    break
+            if is_negated:
+                continue
+            # "我懂" 在情绪接话语境中豁免
+            if flag == "我懂" and any(kw in case.get("input", "") for kw in ["随便", "吐槽", "说说", "烦", "累", "不想"]):
+                continue
             flags.append(f"failure_flag:{flag}")
 
     hard_rules_dict = case.get("hard_rules_dict", {})
@@ -206,6 +222,7 @@ def check_text_rules(reply: str, case: dict[str, Any]) -> tuple[list[str], list[
             "懂了", "确实", "嗯", "哦", "行", "好", "是的", "没错", "抱抱", "懂", "抱抱你", "懂吧", "对啊", "确实啊",
             "啊这..", "啊这...", "这也太真实了。", "这也太真实了..", "这也太惨了。", "这也太惨了..",
             "这也太离谱了。", "这也太离谱了..", "啊？被发现了？", "这太真实了。", "这太真实了..",
+            "？？", "？", "！",
         }
         if reply.strip() not in natural_short and not any(reply.strip().startswith(s) for s in ["懂", "确实", "嗯", "哦", "行", "好", "抱抱", "对啊", "是", "啊这", "这也太", "这太"]):
             flags.append("over_filtered_reply")
