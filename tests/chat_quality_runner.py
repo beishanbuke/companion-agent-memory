@@ -141,11 +141,13 @@ def check_text_rules(reply: str, case: dict[str, Any]) -> tuple[list[str], list[
             before = reply[max(0, idx - 3):idx]
             if any(n in before for n in ["不", "别", "没", "被", "敢"]):
                 continue
-            flags.append(f"hard_rule:{rule}")
             # 如果用户输入中也出现了该词，说明是用户主动提及，LLM 回应不算违规
             if rule in user_input:
                 continue
-
+            # 语境豁免："直接说"在引用/举例语境中不算违规
+            if rule == '直接说' and ("'" in reply or '"' in reply or '「' in reply):
+                continue
+            flags.append(f"hard_rule:{rule}")
     failure_flags = case.get("FAILURE_FLAGS", [])
     for flag in failure_flags:
         if flag in reply:
