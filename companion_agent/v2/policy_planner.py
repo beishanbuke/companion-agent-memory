@@ -87,6 +87,9 @@ class PolicyPlanner:
             return profile.get(key, default)
         return getattr(profile, key, default)
     
+    def __init__(self):
+        self._last_relationship_profile: Any = None
+    
     def plan(
         self,
         intent: Any,
@@ -103,7 +106,7 @@ class PolicyPlanner:
         - thread_manager: 主线管理器
         - relationship_profile: 关系画像
         """
-        
+        self._last_relationship_profile = relationship_profile
         policy = TurnPolicy()
         msg = user_message or ""
         
@@ -368,6 +371,34 @@ class PolicyPlanner:
         
         if policy.goal == "stay_light":
             policy.hard_constraints.append("no_hotline_when_stay_light")
+        
+        # === Phase 10.1: Preference-aware policy adjustments ===
+        rel = self._last_relationship_profile
+        if rel is not None:
+            # dislikes_education: ban motivational words, reduce advice verbosity
+            if self._rel_get(rel, "dislikes_education", False):
+                policy.hard_constraints.append("ban_motivational_words")
+                if policy.skill_verbosity in ("card", "full"):
+                    policy.skill_verbosity = "short"
+            
+            # dislikes_big_plan: max steps <= 2, reduce verbosity
+            if self._rel_get(rel, "dislikes_big_plan", False):
+                policy.hard_constraints.append("max_plan_steps_2")
+                if policy.skill_verbosity == "full":
+                    policy.skill_verbosity = "short"
+                elif policy.skill_verbosity == "card":
+                    policy.skill_verbosity = "hint"
+            
+            # prefers_micro_action: enable micro_action when task pressure exists
+            if self._rel_get(rel, "prefers_micro_action", False):
+                if policy.goal in ("push_one_step", "task_execution", "planning"):
+                    policy.allow_micro_action = True
+                    policy.hard_constraints.append("planning_style_one_small_step")
+            
+            # dislikes_analysis: reduce questions, avoid psychological framing
+            if self._rel_get(rel, "dislikes_analysis", False):
+                policy.max_questions = min(policy.max_questions, 1)
+                policy.hard_constraints.append("avoid_psychological_framing")
         
         return policy
     

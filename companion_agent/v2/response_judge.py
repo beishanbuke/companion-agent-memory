@@ -88,6 +88,7 @@ class ResponseJudge:
         "identity_defensive_tone": 2.0,
         "list_when_chatting": 1.0,
         "too_many_modal_questions": 0.5,
+        "cold_boundary_ack": 1.5,
     }
     
     def __init__(self, runtime: LLMRuntime | None = None):
@@ -111,6 +112,7 @@ class ResponseJudge:
         issues.extend(self._check_bad_questions(assistant_reply, conversation_mode))
         issues.extend(self._check_parentheses(assistant_reply))
         issues.extend(self._check_self_reference(assistant_reply))
+        issues.extend(self._check_boundary_ack(user_message, assistant_reply))
         
         # 计算基础分
         base_score = 8.0
@@ -283,6 +285,23 @@ class ResponseJudge:
                 issues.append(f"角色破坏：包含'{ref}'")
         return issues
     
+    def _check_boundary_ack(self, user_message: str, reply: str) -> list[str]:
+        """Check if boundary acknowledgment is too cold/short.
+        
+        When user says 'don't remember this' or 'don't analyze me',
+        the reply should give warm confirmation, not just '懂的'.
+        """
+        issues = []
+        boundary_markers = ["别记", "别分析", "不想被你分析", "别解读", "别贴标签"]
+        if any(marker in user_message for marker in boundary_markers):
+            # If reply is very short or just generic acknowledgment
+            if len(reply) < 12 or reply.strip() in ("懂的", "懂", "好的", "知道了"):
+                issues.append("cold_boundary_ack: 用户要求不记/不分析时回复过短或太冷")
+            # If reply only says '懂的' without any warm confirmation
+            elif reply.strip().startswith("懂的") and len(reply) < 20:
+                issues.append("cold_boundary_ack: 用户要求不记/不分析时只用'懂的'开头")
+        return issues
+    
     def _rule_based_rewrite(
         self,
         reply: str,
@@ -319,6 +338,10 @@ class ResponseJudge:
                 "欢迎": "",
                 "请随时": "",
                 "如有问题": "",
+            },
+            "cold_boundary_ack": {
+                "懂的": "放心，不记这个",
+                "懂": "懂，正常聊",
             },
             "teacher_preaching_tone": {
                 "你应该": "你可以试试",

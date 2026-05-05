@@ -25,6 +25,7 @@ class TieredMemoryContext:
     long_term_goals: list[dict[str, Any]] = field(default_factory=list)
     episodic_events: list[dict[str, Any]] = field(default_factory=list)
     safety_notes: list[dict[str, Any]] = field(default_factory=list)
+    academic_profile: dict[str, Any] = field(default_factory=dict)
     raw_memory_text: str = ""  # Original retrieve() output for fallback
     memory_count: int = 0
 
@@ -44,6 +45,16 @@ class TieredMemoryContext:
                 else:
                     items.append(f"  - {k}: {v}")
             parts.append("【用户偏好】\n" + "\n".join(items))
+
+        if self.academic_profile:
+            items = []
+            for k, v in self.academic_profile.items():
+                if isinstance(v, list):
+                    items.append(f"  - {k}: {', '.join(str(x) for x in v)}")
+                else:
+                    items.append(f"  - {k}: {v}")
+            if items:
+                parts.append("【学业档案】\n" + "\n".join(items))
 
         if self.long_term_goals:
             items = [f"  - {g.get('description', str(g))}" for g in self.long_term_goals[:3]]
@@ -150,9 +161,14 @@ class MemoryLayerAdapter:
         if all_tiers or "safety_notes" in tiers:
             context.safety_notes = self._extract_safety_notes(snapshot)
 
+        # Tier 6: Academic profile (extracted from memories)
+        if all_tiers or "academic_profile" in tiers:
+            context.academic_profile = self._extract_academic_profile(snapshot)
+
         context.memory_count = (
             len(context.profile)
             + len(context.preferences)
+            + len(context.academic_profile)
             + len(context.long_term_goals)
             + len(context.episodic_events)
             + len(context.safety_notes)
@@ -284,6 +300,108 @@ class MemoryLayerAdapter:
                 })
 
         return notes
+
+    # Academic keywords for extracting academic info from raw memory content
+    ACADEMIC_COURSE_KEYWORDS = ["课程", "学期", "上", "选修", "必修", "学分", "考试"]
+    ACADEMIC_STRENGTH_KEYWORDS = ["擅长", "优势", "强项", "做得好", "拿手"]
+    ACADEMIC_WEAKNESS_KEYWORDS = ["短板", "弱点", "不擅长", "薄弱", "容易", " struggling", "头疼"]
+    ACADEMIC_TASK_KEYWORDS = ["作业", "project", "quiz", "presentation", "ddl", "deadline", "报告", "实验"]
+
+    def _extract_academic_profile(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        """Extract academic profile from memories and preference slots.
+
+        Scans memories for academic-related content and builds a structured
+        academic profile with courses, strengths, weaknesses, current_tasks.
+        """
+        academic: dict[str, Any] = {
+            "courses": [],
+            "strengths": [],
+            "weaknesses": [],
+            "current_tasks": [],
+        }
+
+        # Scan all memories for academic content
+        memories = snapshot.get("memories", [])
+        preference_slots = snapshot.get("preference_slots", {})
+
+        # Also scan preference_slots for academic info
+        all_texts = []
+        for mem in memories:
+            if isinstance(mem, dict):
+                all_texts.append(mem.get("content", "") + " " + mem.get("summary", ""))
+
+        for slot in preference_slots.values():
+            if isinstance(slot, dict):
+                all_texts.append(slot.get("value", ""))
+            else:
+                all_texts.append(str(slot))
+
+        for text in all_texts:
+            text = str(text)
+            # Extract courses: look for patterns like "课程：A、B、C" or "上A、B、C"
+            if any(kw in text for kw in self.ACADEMIC_COURSE_KEYWORDS):
+                # Simple extraction: find comma/顿号 separated items near course keywords
+                import re
+                # Pattern: 课程/学期/上 followed by list of items
+                matches = re.findall(r"(?:课程|学期|上)[:：]\s*([^。\n]+)", text)
+                for match in matches:
+                    items = [i.strip() for i in re.split(r"[、,，]", match) if len(i.strip()) > 1]
+                    academic["courses"].extend(items)
+                # Also try: "这学期上X、Y、Z"
+                matches2 = re.findall(r"这学期上([^。\n]+)", text)
+                for match in matches2:
+                    items = [i.strip() for i in re.split(r"[、,，]", match) if len(i.strip()) > 1]
+                    academic["courses"].extend(items)
+
+            # Extract strengths
+            if any(kw in text for kw in self.ACADEMIC_STRENGTH_KEYWORDS):
+                import re
+                matches = re.findall(r"(?:擅长|优势|强项)[:：]\s*([^。\n]+)", text)
+                for match in matches:
+                    items = [i.strip() for i in re.split(r"[、,，]", match) if len(i.strip()) > 1]
+                    academic["strengths"].extend(items)
+                matches2 = re.findall(r"我擅长([^。\n]+)", text)
+                for match in matches2:
+                    items = [i.strip() for i in re.split(r"[、,，]", match) if len(i.strip()) > 1]
+                    academic["strengths"].extend(items)
+
+            # Extract weaknesses
+            if any(kw in text for kw in self.ACADEMIC_WEAKNESS_KEYWORDS):
+                import re
+                matches = re.findall(r"(?:短板|弱点)[:：]\s*([^。\n]+)", text)
+                for match in matches:
+                    items = [i.strip() for i in re.split(r"[、,，]", match) if len(i.strip()) > 1]
+                    academic["weaknesses"].extend(items)
+                matches2 = re.findall(r"(?:但|不过)([^。\n]*(?:容易|不擅长|烦|逃避)[^。\n]*)", text)
+                for match in matches2:
+                    items = [i.strip() for i in re.split(r"[、,，]", match) if len(i.strip()) > 1]
+                    academic["weaknesses"].extend(items)
+
+            # Extract current tasks
+            if any(kw in text for kw in self.ACADEMIC_TASK_KEYWORDS):
+                import re
+                matches = re.findall(r"(?:压力|任务|有)[:：]\s*([^。\n]+)", text)
+                for match in matches:
+                    items = [i.strip() for i in re.split(r"[、,，]", match) if len(i.strip()) > 1]
+                    academic["current_tasks"].extend(items)
+                matches2 = re.findall(r"(?:还?没|要)([^。\n]*(?:作业|project|quiz|presentation|报告)[^。\n]*)", text)
+                for match in matches2:
+                    items = [i.strip() for i in re.split(r"[、,，]", match) if len(i.strip()) > 1]
+                    academic["current_tasks"].extend(items)
+
+        # Deduplicate and limit
+        for key in academic:
+            if isinstance(academic[key], list):
+                seen = set()
+                deduped = []
+                for item in academic[key]:
+                    if item and item not in seen:
+                        seen.add(item)
+                        deduped.append(item)
+                academic[key] = deduped[:8]  # Limit to 8 items per category
+
+        # Remove empty categories
+        return {k: v for k, v in academic.items() if v}
 
     async def store(self, role: str, content: str) -> None:
         """Delegate to underlying memory engine."""

@@ -146,9 +146,9 @@ def run_scenario(fixture: dict[str, Any]) -> list[str]:
             if current_state not in expected["target_state_in"]:
                 errors.append(f"第{i+1}轮 current_state={current_state!r} not in {expected['target_state_in']}")
         
-        # 检查 allow_advice / allow_humor（从 debug_info 中获取）
-        debug_info = data.get("debug_info", {})
-        policy_debug = debug_info.get("policy", {})
+        # 检查 allow_advice / allow_humor（从 debug 中获取）
+        debug_info = data.get("debug") or data.get("debug_info", {})
+        policy_debug = debug_info.get("policy", {}) if isinstance(debug_info, dict) else {}
         
         if "allow_advice" in expected:
             actual = policy_debug.get("allow_advice")

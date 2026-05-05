@@ -37,6 +37,19 @@ class RelationshipProfile:
     # 梗感模式
     humor_mode: str = "light"  # "off"(不玩梗), "light"(轻微), "active"(活跃)
     
+    # === Phase 10.1 新增偏好 ===
+    # 是否不喜欢被教育/喊加油
+    dislikes_education: bool = False
+    
+    # 是否不喜欢大计划
+    dislikes_big_plan: bool = False
+    
+    # 是否偏好微动作（30-60分钟一小步）
+    prefers_micro_action: bool = False
+    
+    # 是否不喜欢被分析
+    dislikes_analysis: bool = False
+    
     # 学习来源
     evidence: dict[str, list[str]] = field(default_factory=dict)
     
@@ -186,6 +199,27 @@ class RelationshipMemory:
             if profile.humor_mode == "active":
                 self._update_preference(profile, "humor_mode", "light", explicit=False)
             profile.evidence.setdefault("humor_mode", []).append("情绪高时降梗")
+        
+        # === Phase 10.1: 学习 preference-aware policy 偏好 ===
+        # dislikes_education
+        if any(kw in user_message for kw in ["别教育我", "别喊加油", "别鸡汤", "不喜欢被教育", "别鼓励我"]):
+            self._update_preference(profile, "dislikes_education", True, explicit=explicit)
+            profile.evidence.setdefault("dislikes_education", []).append("用户拒绝教育/加油/鸡汤")
+        
+        # dislikes_big_plan
+        if any(kw in user_message for kw in ["别列大计划", "别完整计划", "不要大计划", "不喜欢大计划", "别排时间表"]):
+            self._update_preference(profile, "dislikes_big_plan", True, explicit=explicit)
+            profile.evidence.setdefault("dislikes_big_plan", []).append("用户拒绝大计划")
+        
+        # prefers_micro_action
+        if any(kw in user_message for kw in ["先搞一步", "一小步", "当前能做", "30分钟", "60分钟", "先做一点"]):
+            self._update_preference(profile, "prefers_micro_action", True, explicit=explicit)
+            profile.evidence.setdefault("prefers_micro_action", []).append("用户偏好微动作")
+        
+        # dislikes_analysis
+        if any(kw in user_message for kw in ["别分析我", "别解读", "别心理学", "不想被分析", "别贴标签"]):
+            self._update_preference(profile, "dislikes_analysis", True, explicit=explicit)
+            profile.evidence.setdefault("dislikes_analysis", []).append("用户拒绝被分析")
         
         profile.version += 1
         
