@@ -1,0 +1,8 @@
+{
+  "scenario_id": "undergrad_memory_35turns",
+  "session_id": "test_haowen_p10",
+  "total_turns": 35,
+  "successful_turns": 35,
+  "error_turns": 0,
+  "avg_latency_ms": 30484.8
+}

@@ -1,0 +1,61 @@
+{
+  "profile_id": "undergrad_haowen_v1",
+  "name": "林昊文",
+  "preferred_name": "昊文",
+  "age": 21,
+  "gender": "male",
+  "height_cm": 176,
+  "weight_kg": 64,
+  "university": "南方科技大学",
+  "major": "通信工程",
+  "year": "大三",
+  "personality": ["外表平静", "内心容易想很多", "慢热", "讲冷笑话", "压力大时会嘴硬", "不喜欢被教育"],
+  "communication_style": {
+    "likes": ["短一点", "像朋友一样接话", "可以轻微吐槽", "给选择而不是大道理", "需要方案时给一小步"],
+    "dislikes": ["心理咨询腔", "客服腔", "老师说教", "长篇鸡汤", "动不动问很多问题"]
+  },
+  "academic": {
+    "current_courses": ["数字通信", "微波工程", "现代传感技术", "嵌入式系统", "工程电磁场"],
+    "strengths": ["电路分析", "信号系统", "实验动手", "报告排版", "把复杂东西讲清楚"],
+    "weaknesses": ["考试前容易拖延", "presentation 前一天才紧张", "代码报错时容易烦", "多任务撞车时会逃避"],
+    "current_pressure_sources": ["一周内有两个 quiz", "嵌入式 project 还没调完", "微波工程作业没写", "presentation slides 还很空", "期末刚考完但还没恢复"],
+    "study_preference": ["不喜欢完整大计划", "喜欢当前 30-60 分钟能做的动作", "需要优先级排序", "不喜欢被喊加油"]
+  },
+  "hobbies": {
+    "music": ["周杰伦", "陈奕迅", "落日飞车", "轻微 city pop", "晚上写报告听纯音乐"],
+    "food": ["牛肉面", "螺蛳粉", "烧鸭饭", "便利店饭团", "冰美式", "夜宵偏咸口"],
+    "sports": ["偶尔打羽毛球", "散步", "不太喜欢高强度健身"],
+    "entertainment": ["看 B 站科技区", "刷旅行 vlog", "偶尔玩文字冒险游戏", "喜欢冷幽默梗"],
+    "travel_style": ["喜欢慢慢逛", "不喜欢赶景点", "讨厌同行的人临时变卦", "旅行回来会又累又爽"]
+  },
+  "family": {
+    "hometown": "广西南宁",
+    "family_members": [
+      {"role": "father", "description": "作息规律，早睡早起，讲话直接，关心但不太会表达"},
+      {"role": "mother", "description": "喜欢做饭和提醒生活细节，会催早睡，担心用户身体"},
+      {"role": "younger_sister", "description": "高中生，嘴上嫌弃但会分享学校八卦"}
+    ],
+    "home_conflict": ["放假回家后家里人 11 点前睡，用户习惯 1-2 点睡", "父母觉得熬夜就是不自律", "用户觉得在家被盯着作息不自由"],
+    "sensitive_handling": "家庭矛盾属于轻度私人内容，默认只作为 session/context 使用，除非用户明确要求记住。"
+  },
+  "friends": {
+    "close_friends": [
+      {"name": "阿哲", "role": "同专业朋友", "traits": ["嘴很欠", "project 搭子", "经常临时改计划"]},
+      {"name": "小满", "role": "高中朋友", "traits": ["旅行搭子", "拍照很认真", "容易纠结吃什么"]},
+      {"name": "Rain", "role": "社团朋友", "traits": ["presentation 很强", "会帮忙看 slides"]}
+    ],
+    "social_style": ["对熟人很会吐槽", "对不熟的人礼貌但容易累", "被朋友放鸽子会嘴上说没事但心里烦"]
+  },
+  "recent_events": [
+    {"event": "刚考完期末一门硬课", "emotion": "松了一口气但很空", "time": "this_week"},
+    {"event": "和小满、阿哲旅游回来", "emotion": "又累又爽，有点吐槽阿哲临时改行程", "time": "last_weekend"},
+    {"event": "下周 quiz、project、作业、presentation 撞在一起", "emotion": "想逃避但知道必须处理", "time": "next_week"},
+    {"event": "准备放假回南宁", "emotion": "想家但担心作息冲突", "time": "upcoming_break"}
+  ],
+  "session_hints": {
+    "mood_today": "刚考完试有点空，但又焦虑下周",
+    "energy_level": "中等偏低，想休息但脑子停不下来",
+    "recent_topic": "旅游回来的后劲 + 下周压力",
+    "wants_from_agent": "接得住吐槽、不催不push、偶尔给一步"
+  }
+}

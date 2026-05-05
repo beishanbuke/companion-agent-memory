@@ -1,0 +1,83 @@
+{
+  "recall": {
+    "林昊文/昊文": {
+      "found": true,
+      "turns": [
+        4
+      ],
+      "count": 1
+    },
+    "南方科技大学/通信工程/大三": {
+      "found": true,
+      "turns": [
+        3
+      ],
+      "count": 1
+    },
+    "数字通信/微波工程/嵌入式系统": {
+      "found": false,
+      "turns": [],
+      "count": 0
+    },
+    "阿哲/小满/Rain": {
+      "found": true,
+      "turns": [
+        7,
+        8,
+        10,
+        11,
+        14,
+        29,
+        33
+      ],
+      "count": 7
+    },
+    "南宁/广西": {
+      "found": false,
+      "turns": [],
+      "count": 0
+    },
+    "喜欢慢慢逛/讨厌临时改计划": {
+      "found": false,
+      "turns": [],
+      "count": 0
+    },
+    "不喜欢被教育/不喜欢加油": {
+      "found": false,
+      "turns": [],
+      "count": 0
+    },
+    "刚考完数字通信": {
+      "found": false,
+      "turns": [],
+      "count": 0
+    },
+    "旅游回来/阿哲临时改行程": {
+      "found": false,
+      "turns": [],
+      "count": 0
+    },
+    "下周 quiz+project+作业+presentation 撞车": {
+      "found": false,
+      "turns": [],
+      "count": 0
+    },
+    "家里 11 点睡/自己 1-2 点睡": {
+      "found": false,
+      "turns": [],
+      "count": 0
+    },
+    "别记这个（家庭吐槽）": {
+      "found": false,
+      "turns": [],
+      "count": 0
+    }
+  },
+  "precision": 0.25,
+  "found_count": 3,
+  "total_expected": 12,
+  "forced_memory_count": 0,
+  "natural_memory_count": 11,
+  "boundary_respected": true,
+  "boundary_turns": 1
+}
