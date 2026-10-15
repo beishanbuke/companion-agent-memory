@@ -1,0 +1,55 @@
+{
+  "watcher": {
+    "emotion_file": "/home/nvidia/Desktop/companion-agent-memory/prototype_demo/.run/current_emotion.json",
+    "poll_interval": 0.5,
+    "gateway_url": "http://127.0.0.1:8790",
+    "request_timeout": 3.0,
+    "dry_run": false
+  },
+  "gateway": {
+    "listen_host": "127.0.0.1",
+    "listen_port": 8790,
+    "auth_token": "",
+    "settle_gap": 2.0,
+    "dry_run": false
+  },
+  "robot": {
+    "trigger_impl": "B",
+    "action_duration": 5.44,
+    "action_run_duration": 20.0,
+    "recover_to_stand": true,
+    "recover_duration": 3.5,
+    "robot_check_cmd": "rosnode list",
+    "robot_node_keyword": "sim2real_master_node",
+    "joy_topic": "/joy_msg",
+    "fsm_state_topic": "/fsm_state",
+    "ensure_custom_mode": true,
+    "ensure_standing": true,
+    "stand_up_duration": 4.0,
+    "mode_switch_interval": 3.0,
+    "action_hold": 0.3,
+    "joy_button_sequence": []
+  },
+  "actions": {
+    "hello": {
+      "duration": 5.44
+    },
+    "cheer": {
+      "duration": 3.0
+    },
+    "whitelist": [
+      "hello",
+      "cheer"
+    ]
+  },
+  "emotion_map": {
+    "开心": "cheer",
+    "期待": "cheer",
+    "难过": "hello",
+    "焦虑": "hello",
+    "愤怒": "hello",
+    "疲惫": "hello",
+    "孤独": "hello"
+  },
+  "log_dir": "logs"
+}

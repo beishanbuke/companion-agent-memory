@@ -1,0 +1,20 @@
+[
+  {"id": "anxious-exam", "message": "明天就要答辩了，我好紧张，心里完全没底", "expect": "焦虑"},
+  {"id": "anxious-en", "message": "I am so stressed about the interview tomorrow", "expect": "焦虑"},
+  {"id": "sad-loss", "message": "陪伴我十年的猫昨天走了，真的好难过", "expect": "难过"},
+  {"id": "angry-work", "message": "凭什么又把锅甩给我，太过分了，气死", "expect": "愤怒"},
+  {"id": "tired-overtime", "message": "连续加班两周，整个人都被掏空了", "expect": "疲惫"},
+  {"id": "lonely-holiday", "message": "过节一个人在家，有点寂寞，也没人说话", "expect": "孤独"},
+  {"id": "happy-news", "message": "太好了！我的方案一次就通过了", "expect": "开心"},
+  {"id": "expectant-trip", "message": "好期待周末的旅行，等不及了", "expect": "期待"},
+  {"id": "calm-after", "message": "现在很平静，之前的事情都过去了", "expect": "平静"},
+  {"id": "none-weather", "message": "今天天气不错，适合出去走走", "expect": "None"},
+  {"id": "mixed-graduation", "message": "考上了好开心！但要离开朋友们了", "expect": "开心", "secondary_expect": "难过", "hard": true, "note": "混合情绪，依赖 LLM judge"},
+  {"id": "sarcasm-fail", "message": "呵呵，真不错，精心准备的汇报又被打回了", "expect": "难过", "hard": true, "note": "反讽，规则预期漏检"},
+  {"id": "indirect-sleepless", "message": "没事，就是最近一直睡不着", "expect": "焦虑", "hard": true, "note": "否认+间接线索"},
+  {"id": "negated-happy", "message": "我一点都不开心", "expect": "难过"},
+  {"id": "negated-sad-en", "message": "Actually I am not sad at all, quite relieved", "expect": "开心"},
+  {"id": "anxious-tired-mix", "message": "想到下周的考试就心慌，最近也累得不行", "expect": "焦虑", "secondary_expect": "疲惫"},
+  {"id": "angry-sarcasm-short", "message": "行，你可真行", "expect": "愤怒", "hard": true, "note": "短反讽"},
+  {"id": "lonely-midnight", "message": "凌晨了还是睡不着，感觉全世界只剩我一个人", "expect": "孤独", "secondary_expect": "疲惫"}
+]

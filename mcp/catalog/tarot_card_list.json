@@ -1,0 +1,392 @@
+[
+ {
+  "num": 1,
+  "slug": "the-fool",
+  "name": "愚者"
+ },
+ {
+  "num": 2,
+  "slug": "the-magician",
+  "name": "魔术师"
+ },
+ {
+  "num": 3,
+  "slug": "the-high-priestess",
+  "name": "女祭司"
+ },
+ {
+  "num": 4,
+  "slug": "the-empress",
+  "name": "女皇"
+ },
+ {
+  "num": 5,
+  "slug": "the-emperor",
+  "name": "皇帝"
+ },
+ {
+  "num": 6,
+  "slug": "the-hierophant",
+  "name": "教皇"
+ },
+ {
+  "num": 7,
+  "slug": "the-lovers",
+  "name": "恋人"
+ },
+ {
+  "num": 8,
+  "slug": "the-chariot",
+  "name": "战车"
+ },
+ {
+  "num": 9,
+  "slug": "strength",
+  "name": "力量"
+ },
+ {
+  "num": 10,
+  "slug": "the-hermit",
+  "name": "隐士"
+ },
+ {
+  "num": 11,
+  "slug": "wheel-of-fortune",
+  "name": "命运之轮"
+ },
+ {
+  "num": 12,
+  "slug": "justice",
+  "name": "正义"
+ },
+ {
+  "num": 13,
+  "slug": "the-hanged-man",
+  "name": "倒吊人"
+ },
+ {
+  "num": 14,
+  "slug": "death",
+  "name": "死神"
+ },
+ {
+  "num": 15,
+  "slug": "temperance",
+  "name": "节制"
+ },
+ {
+  "num": 16,
+  "slug": "the-devil",
+  "name": "恶魔"
+ },
+ {
+  "num": 17,
+  "slug": "the-tower",
+  "name": "高塔"
+ },
+ {
+  "num": 18,
+  "slug": "the-star",
+  "name": "星星"
+ },
+ {
+  "num": 19,
+  "slug": "the-moon",
+  "name": "月亮"
+ },
+ {
+  "num": 20,
+  "slug": "the-sun",
+  "name": "太阳"
+ },
+ {
+  "num": 21,
+  "slug": "judgement",
+  "name": "审判"
+ },
+ {
+  "num": 22,
+  "slug": "the-world",
+  "name": "世界"
+ },
+ {
+  "num": 23,
+  "slug": "ace-of-wands",
+  "name": "权杖一"
+ },
+ {
+  "num": 24,
+  "slug": "two-of-wands",
+  "name": "权杖二"
+ },
+ {
+  "num": 25,
+  "slug": "three-of-wands",
+  "name": "权杖三"
+ },
+ {
+  "num": 26,
+  "slug": "four-of-wands",
+  "name": "权杖四"
+ },
+ {
+  "num": 27,
+  "slug": "five-of-wands",
+  "name": "权杖五"
+ },
+ {
+  "num": 28,
+  "slug": "six-of-wands",
+  "name": "权杖六"
+ },
+ {
+  "num": 29,
+  "slug": "seven-of-wands",
+  "name": "权杖七"
+ },
+ {
+  "num": 30,
+  "slug": "eight-of-wands",
+  "name": "权杖八"
+ },
+ {
+  "num": 31,
+  "slug": "nine-of-wands",
+  "name": "权杖九"
+ },
+ {
+  "num": 32,
+  "slug": "ten-of-wands",
+  "name": "权杖十"
+ },
+ {
+  "num": 33,
+  "slug": "page-of-wands",
+  "name": "权杖侍从"
+ },
+ {
+  "num": 34,
+  "slug": "knight-of-wands",
+  "name": "权杖骑士"
+ },
+ {
+  "num": 35,
+  "slug": "queen-of-wands",
+  "name": "权杖王后"
+ },
+ {
+  "num": 36,
+  "slug": "king-of-wands",
+  "name": "权杖国王"
+ },
+ {
+  "num": 37,
+  "slug": "ace-of-cups",
+  "name": "圣杯一"
+ },
+ {
+  "num": 38,
+  "slug": "two-of-cups",
+  "name": "圣杯二"
+ },
+ {
+  "num": 39,
+  "slug": "three-of-cups",
+  "name": "圣杯三"
+ },
+ {
+  "num": 40,
+  "slug": "four-of-cups",
+  "name": "圣杯四"
+ },
+ {
+  "num": 41,
+  "slug": "five-of-cups",
+  "name": "圣杯五"
+ },
+ {
+  "num": 42,
+  "slug": "six-of-cups",
+  "name": "圣杯六"
+ },
+ {
+  "num": 43,
+  "slug": "seven-of-cups",
+  "name": "圣杯七"
+ },
+ {
+  "num": 44,
+  "slug": "eight-of-cups",
+  "name": "圣杯八"
+ },
+ {
+  "num": 45,
+  "slug": "nine-of-cups",
+  "name": "圣杯九"
+ },
+ {
+  "num": 46,
+  "slug": "ten-of-cups",
+  "name": "圣杯十"
+ },
+ {
+  "num": 47,
+  "slug": "page-of-cups",
+  "name": "圣杯侍从"
+ },
+ {
+  "num": 48,
+  "slug": "knight-of-cups",
+  "name": "圣杯骑士"
+ },
+ {
+  "num": 49,
+  "slug": "queen-of-cups",
+  "name": "圣杯王后"
+ },
+ {
+  "num": 50,
+  "slug": "king-of-cups",
+  "name": "圣杯国王"
+ },
+ {
+  "num": 51,
+  "slug": "ace-of-swords",
+  "name": "宝剑一"
+ },
+ {
+  "num": 52,
+  "slug": "two-of-swords",
+  "name": "宝剑二"
+ },
+ {
+  "num": 53,
+  "slug": "three-of-swords",
+  "name": "宝剑三"
+ },
+ {
+  "num": 54,
+  "slug": "four-of-swords",
+  "name": "宝剑四"
+ },
+ {
+  "num": 55,
+  "slug": "five-of-swords",
+  "name": "宝剑五"
+ },
+ {
+  "num": 56,
+  "slug": "six-of-swords",
+  "name": "宝剑六"
+ },
+ {
+  "num": 57,
+  "slug": "seven-of-swords",
+  "name": "宝剑七"
+ },
+ {
+  "num": 58,
+  "slug": "eight-of-swords",
+  "name": "宝剑八"
+ },
+ {
+  "num": 59,
+  "slug": "nine-of-swords",
+  "name": "宝剑九"
+ },
+ {
+  "num": 60,
+  "slug": "ten-of-swords",
+  "name": "宝剑十"
+ },
+ {
+  "num": 61,
+  "slug": "page-of-swords",
+  "name": "宝剑侍从"
+ },
+ {
+  "num": 62,
+  "slug": "knight-of-swords",
+  "name": "宝剑骑士"
+ },
+ {
+  "num": 63,
+  "slug": "queen-of-swords",
+  "name": "宝剑王后"
+ },
+ {
+  "num": 64,
+  "slug": "king-of-swords",
+  "name": "宝剑国王"
+ },
+ {
+  "num": 65,
+  "slug": "ace-of-pentacles",
+  "name": "钱币一"
+ },
+ {
+  "num": 66,
+  "slug": "two-of-pentacles",
+  "name": "钱币二"
+ },
+ {
+  "num": 67,
+  "slug": "three-of-pentacles",
+  "name": "钱币三"
+ },
+ {
+  "num": 68,
+  "slug": "four-of-pentacles",
+  "name": "钱币四"
+ },
+ {
+  "num": 69,
+  "slug": "five-of-pentacles",
+  "name": "钱币五"
+ },
+ {
+  "num": 70,
+  "slug": "six-of-pentacles",
+  "name": "钱币六"
+ },
+ {
+  "num": 71,
+  "slug": "seven-of-pentacles",
+  "name": "钱币七"
+ },
+ {
+  "num": 72,
+  "slug": "eight-of-pentacles",
+  "name": "钱币八"
+ },
+ {
+  "num": 73,
+  "slug": "nine-of-pentacles",
+  "name": "钱币九"
+ },
+ {
+  "num": 74,
+  "slug": "ten-of-pentacles",
+  "name": "钱币十"
+ },
+ {
+  "num": 75,
+  "slug": "page-of-pentacles",
+  "name": "钱币侍从"
+ },
+ {
+  "num": 76,
+  "slug": "knight-of-pentacles",
+  "name": "钱币骑士"
+ },
+ {
+  "num": 77,
+  "slug": "queen-of-pentacles",
+  "name": "钱币王后"
+ },
+ {
+  "num": 78,
+  "slug": "king-of-pentacles",
+  "name": "钱币国王"
+ }
+]

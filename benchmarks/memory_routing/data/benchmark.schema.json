@@ -1,0 +1,85 @@
+{
+  "type": "object",
+  "required": [
+    "id",
+    "category",
+    "user_message",
+    "history",
+    "memory_snapshot",
+    "expected_route",
+    "expected_behavior"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "no_memory",
+        "background_only",
+        "explicit_recall",
+        "personalized_advice",
+        "adversarial"
+      ]
+    },
+    "user_message": {
+      "type": "string"
+    },
+    "history": {
+      "type": "array"
+    },
+    "memory_snapshot": {
+      "type": "object"
+    },
+    "expected_route": {
+      "type": "object",
+      "required": [
+        "need_memory",
+        "tiers",
+        "mention_policy"
+      ],
+      "properties": {
+        "need_memory": {
+          "type": "boolean"
+        },
+        "tiers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mention_policy": {
+          "type": "string",
+          "enum": [
+            "forbid",
+            "implicit_only",
+            "explicit_ok"
+          ]
+        }
+      }
+    },
+    "expected_behavior": {
+      "type": "object",
+      "required": [
+        "should_personalize",
+        "should_explicitly_mention_memory",
+        "should_reference_specific_past_event"
+      ],
+      "properties": {
+        "should_personalize": {
+          "type": "boolean"
+        },
+        "should_explicitly_mention_memory": {
+          "type": "boolean"
+        },
+        "should_reference_specific_past_event": {
+          "type": "boolean"
+        }
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

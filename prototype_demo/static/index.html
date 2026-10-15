@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Memory Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css?v=20260921-journal" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="header-brand">
+          <div class="brand-mark"></div>
+          <div class="brand-text">
+            <h1>姜姜</h1>
+            <p>AI 记忆与对话管理系统</p>
+          </div>
+        </div>
+        
+        <div class="header-center">
+          <div class="segmented" role="tablist" aria-label="Memory toggle">
+            <button class="segment active" id="toggleOn">Memory ON</button>
+            <button class="segment" id="toggleOff">Memory OFF</button>
+          </div>
+        </div>
+        
+        <div class="header-right">
+          <button class="btn btn-secondary" id="resetSessionBtn">新会话</button>
+          <button class="btn btn-danger" id="clearMemoryBtn">清空记忆</button>
+          <div class="header-status" id="memoryStatusCard">
+            <span class="status-dot"></span>
+            <span class="status-text" id="memoryModeLabel">Memory ON</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="demo-toolbar">
+        <span class="toolbar-label">推荐演示</span>
+        <div class="demo-buttons">
+          <button class="demo-chip" data-mode="send" data-text="我叫小雨，是一名插画师，住在上海。我喜欢喝拿铁。">
+            初次认识用户
+          </button>
+          <button class="demo-chip" data-mode="send" data-text="其实我上个月搬到杭州了，现在更喜欢美式。">
+            用户信息变化
+          </button>
+          <button class="demo-chip" data-mode="resetThenSend" data-text="你还记得我现在住在哪里，喜欢喝什么吗？">
+            新会话后追问
+          </button>
+          <button class="demo-chip" data-mode="send" data-text="我现在已经再婚了。">
+            关系状态更新
+          </button>
+          <button class="demo-chip" data-mode="send" data-text="我现在不喜欢热闹场合了，更喜欢安静散步。">
+            偏好更新
+          </button>
+          <button class="demo-chip" data-mode="send" data-text="今天上海天气怎么样？适合出门吗？">
+            天气查询
+          </button>
+          <button class="demo-chip" data-mode="send" data-text="我是天秤座，今天有点焦虑，帮我看看今日运势，适不适合推进重要任务？">
+            星座运势
+          </button>
+          <button class="demo-chip" data-mode="send" data-text="帮我抽一张塔罗牌，看看我最近的状态">
+            塔罗抽牌
+          </button>
+        </div>
+      </div>
+
+      <main class="workspace">
+        <section class="chat-panel">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <span class="panel-kicker">Chat</span>
+              <h2>对话</h2>
+            </div>
+            <div class="panel-badges">
+              <div class="emotion-badge" id="emotionBadge">
+                <span class="emotion-dot"></span>
+                <span id="emotionText">情绪：None</span>
+              </div>
+              <div class="situation-badge" id="situationBadge" style="display: none;">
+                <span class="situation-dot"></span>
+                <span id="situationText">casual_chat</span>
+              </div>
+              <div class="memory-badge" id="memoryUsageBadge">
+                当前回答未使用长期记忆
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-stream" id="chatStream">
+            <div class="empty-state">
+              <p>先点上面的演示按钮，或者自己输入一句话开始。</p>
+              <p>推荐先试：“我叫小雨，是一名插画师，住在上海。我喜欢喝拿铁。”</p>
+            </div>
+          </div>
+
+          <section class="voice-inline-dock" id="voiceInlineDock">
+            <div class="voice-inline-meta">
+              <div class="panel-title-group">
+                <span class="panel-kicker">Realtime Voice</span>
+                <p class="voice-inline-title">语音连接</p>
+              </div>
+              <div class="voice-inline-actions">
+                <button class="btn btn-secondary" id="connectVoiceBtn" type="button">Connect</button>
+                <button class="btn btn-secondary" id="disconnectVoiceBtn" type="button">Disconnect</button>
+                <button class="btn btn-ghost" id="refreshVoiceBtn" type="button">刷新</button>
+              </div>
+            </div>
+            <p class="voice-inline-status" id="voiceInlineStatus">
+              正在检查 realtime voice 服务状态...
+            </p>
+            <div class="voice-inline-frame-shell" id="voiceInlineFrameShell">
+              <div class="voice-connection-card">
+                <div class="voice-pill-row">
+                  <span class="voice-pill" id="voiceServicePill">Service unknown</span>
+                  <span class="voice-pill" id="voiceSessionPill">Session idle</span>
+                </div>
+                <audio id="voiceRemoteAudio" autoplay playsinline></audio>
+              </div>
+            </div>
+          </section>
+
+          <div class="composer">
+            <div class="composer-message">
+              <label class="composer-field-label" for="messageInput">对话输入</label>
+              <textarea
+                id="messageInput"
+                rows="3"
+                placeholder="输入一句话，看看系统会不会记住你..."
+              ></textarea>
+            </div>
+
+            <div class="composer-actions">
+              <button class="btn btn-ghost voice-button" id="micBtn" type="button">Mic</button>
+              <button class="btn btn-ghost" id="speechToggleBtn" type="button">语音播报：开</button>
+              <button class="btn btn-primary send-button" id="sendBtn">发送</button>
+            </div>
+          </div>
+          <p class="composer-hint" id="voiceInlineHint">
+            内联语音模式：点 Mic 说话，识别后的文字会直接进入当前聊天流。建议使用 Chrome/Edge。
+          </p>
+        </section>
+
+        <aside class="memory-panel" id="memoryPanel">
+          <section class="character-selector-section" id="characterSelectorSection">
+            <div class="panel-title-group">
+              <span class="panel-kicker">Character</span>
+              <h2>对话角色</h2>
+            </div>
+            <div class="character-list" id="characterList">
+              <p class="muted">正在加载角色列表...</p>
+            </div>
+          </section>
+
+          <section class="fortune-section" id="fortuneSection">
+            <div class="panel-title-group">
+              <span class="panel-kicker">Fortune</span>
+              <h2>今日运势</h2>
+            </div>
+            <div class="fortune-card" id="fortuneCard">
+              <p class="muted">在对话里告诉我你的星座，例如“我是天秤座，帮我看看今日运势”。</p>
+            </div>
+          </section>
+
+          <section class="tarot-section" id="tarotSection">
+            <div class="panel-title-group tarot-section-header">
+              <div>
+                <span class="panel-kicker">Tarot</span>
+                <h2>塔罗专区</h2>
+              </div>
+              <span class="tarot-badge">78 张牌 · 仅供娱乐参考</span>
+            </div>
+
+            <div class="tarot-intro" id="tarotIntro">
+              <p class="tarot-intro-lead">
+                七十八张牌——22张大阿尔卡纳，从愚者无畏的一跃，到世界宁静的圆满，以及权杖、圣杯、宝剑与钱币四组共56张小阿尔卡纳。
+              </p>
+              <details class="tarot-intro-detail">
+                <summary>什么是大阿尔卡纳？</summary>
+                <p>大阿尔卡纳是塔罗牌核心的22张“王牌”，编号从0（愚者）到XXI（世界）。每一张都代表一种普世的原型——一种可辨识的人类模式，比如崭新的开始、蜕变，或圆满。</p>
+              </details>
+              <details class="tarot-intro-detail">
+                <summary>什么是小阿尔卡纳？</summary>
+                <p>小阿尔卡纳是牌组中细致描绘日常生活的56张牌，分为四组花色，每组十四张：权杖（火——驱动力与野心）、圣杯（水——情感与关系）、宝剑（风——理智与冲突），以及钱币（土——工作、金钱与身体）。</p>
+              </details>
+              <details class="tarot-intro-detail">
+                <summary>四组花色</summary>
+                <p>权杖——火，驱动力、野心、创造力；圣杯——水，情感、爱、直觉；宝剑——风，理智、真相、冲突；钱币——土，工作、金钱、物质世界。</p>
+              </details>
+              <details class="tarot-intro-detail">
+                <summary>正位与逆位有什么区别？</summary>
+                <p>正位的牌，以最开放、最直接的形式表达它的原型；逆位的牌，指向同一个主题，但转向内在、受阻，或是过度。逆位增添的是细微差别——它们并不只是这张牌的“坏”版本。</p>
+              </details>
+              <details class="tarot-intro-detail">
+                <summary>使用塔罗牌需要相信占卜吗？</summary>
+                <p>不需要。很多人像心理学家卡尔·荣格那样解读塔罗牌——把它当作一组生动的原型，映照出我们自身的不同部分。你可以把这些牌当作自我反思的语言，而无需相信占卜本身。</p>
+              </details>
+            </div>
+
+            <div class="tarot-actions">
+              <button class="btn btn-secondary" id="tarotSingleBtn" type="button">抽一张牌</button>
+              <button class="btn btn-secondary" id="tarotThreeBtn" type="button">三张牌阵 · 过去/现在/未来</button>
+            </div>
+            <p class="tarot-status" id="tarotStatus">塔罗牌面介绍文字来自 JobCannon 塔罗百科；解读会结合你的记忆由 AI 写成。</p>
+
+            <div class="tarot-draw is-hidden" id="tarotDraw"></div>
+          </section>
+
+          <section class="calendar-section" id="calendarSection">
+            <div class="panel-title-group calendar-header">
+              <div>
+                <span class="panel-kicker">Mood Calendar</span>
+                <h2>心情天气日历</h2>
+              </div>
+              <button class="btn btn-secondary" id="calendarAnalyzeBtn" type="button">生成分析</button>
+            </div>
+            <p class="calendar-note">自动记录每天的心情、天气、运势与塔罗使用情况，帮你发现属于自己的规律。</p>
+            <div class="calendar-grid" id="calendarGrid"></div>
+            <div class="calendar-detail is-hidden" id="calendarDetail"></div>
+            <div class="calendar-analysis is-hidden" id="calendarAnalysis"></div>
+            <div class="mood-chart-card">
+              <div class="mood-chart-head">
+                <div>
+                  <span class="panel-kicker">Mood Journey</span>
+                  <h3>心情曲线</h3>
+                </div>
+                <div class="mood-chart-legend">
+                  <span class="legend-chip"><i class="legend-line legend-past"></i>过去 14 天</span>
+                  <span class="legend-chip"><i class="legend-line legend-future"></i>未来 5 天 · 预测</span>
+                  <span class="legend-chip"><i class="legend-star">✦</i>抽了塔罗</span>
+                </div>
+              </div>
+              <div class="mood-chart-canvas-wrap">
+                <canvas id="moodTrendCanvas"></canvas>
+              </div>
+              <p class="mood-chart-note">未来的心情是姜姜按你最近的状态和天气轻轻估的，仅供参考——真正的好心情由你亲手酿造。</p>
+            </div>
+          </section>
+
+          <section class="tarot-journal-section" id="tarotJournalSection">
+            <div class="panel-title-group">
+              <div>
+                <span class="panel-kicker">Divination Journal</span>
+                <h2>占卜手札</h2>
+              </div>
+            </div>
+            <p class="calendar-note">每一次抽牌都会留一页手札：当天的牌、问到的事，和生活里那件小事。</p>
+            <div class="tarot-journal" id="tarotJournal"></div>
+          </section>
+
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <span class="panel-kicker">Live Memory</span>
+              <h2>记忆看板</h2>
+            </div>
+            <div class="memory-panel-actions">
+              <button class="btn btn-ghost" id="toggleMemoryImportBtn" type="button">手动导入</button>
+              <span class="panel-note" id="panelModeHint">当前会读写长期记忆</span>
+            </div>
+          </div>
+
+          <section class="runtime-card-status" id="voiceRuntimeCard">
+            <h3>语音链路生效角色</h3>
+            <p class="runtime-card-line"><strong>实际生效：</strong><span id="runtimeCardApplied">加载中...</span></p>
+            <p class="runtime-card-line"><strong>当前选中：</strong><span id="runtimeCardSelected">加载中...</span></p>
+            <p class="runtime-card-line"><strong>同步状态：</strong><span id="runtimeCardSync">未知</span></p>
+          </section>
+
+          <section class="memory-import card-surface is-hidden" id="memoryImportPanel">
+            <div class="memory-import-header">
+              <div class="panel-title-group">
+                <span class="panel-kicker">Import</span>
+                <h3>手动导入记忆</h3>
+              </div>
+              <button class="btn btn-ghost" id="closeMemoryImportBtn" type="button">收起</button>
+            </div>
+            <p class="memory-import-copy">
+              直接输入一段用户事实或偏好，系统会按正常 memory 抽取逻辑写入长期记忆，不需要先走聊天。下方 Persona、Preference、Recent Events 卡片支持逐条删除。
+            </p>
+            <textarea
+              id="memoryImportInput"
+              rows="5"
+              placeholder="例如：我叫小雨，现在住在杭州，更喜欢喝美式，周末喜欢安静散步。"
+            ></textarea>
+            <div class="memory-import-actions">
+              <button class="btn btn-primary" id="submitMemoryImportBtn" type="button">导入到长期记忆</button>
+            </div>
+            <p class="memory-import-status" id="memoryImportStatus">支持一次输入多句，系统会统一抽取并写入。</p>
+          </section>
+
+          <section class="spotlight" id="updateSpotlight">
+            <h3>刚刚发生的记忆变化</h3>
+            <div class="spotlight-body" id="updateList">
+              <p class="muted">还没有新的记忆变化。</p>
+            </div>
+          </section>
+
+          <section class="memory-inspector" id="memoryInspector">
+            <div class="memory-inspector-header">
+              <div>
+                <span class="panel-kicker">Inspector</span>
+                <h3>记忆决策可视化</h3>
+              </div>
+              <div class="inspector-tabs" role="tablist" aria-label="Memory inspector">
+                <button class="inspector-tab active" id="routeInspectorTab" type="button" data-inspector-tab="route">Router</button>
+                <button class="inspector-tab" id="lifecycleInspectorTab" type="button" data-inspector-tab="lifecycle">Lifecycle</button>
+              </div>
+            </div>
+            <div class="inspector-panel" id="routeInspectorPanel">
+              <p class="muted">发送一条消息后，会显示 Memory Router v2 的路由决策。</p>
+            </div>
+            <div class="inspector-panel is-hidden" id="lifecycleInspectorPanel">
+              <p class="muted">发送一条消息后，会显示进入 prompt 前的生命周期过滤结果。</p>
+            </div>
+          </section>
+
+          <section class="memory-section">
+            <h3>Persona</h3>
+            <div class="memory-grid" id="personaGrid"></div>
+          </section>
+
+          <section class="memory-section">
+            <h3>Preference</h3>
+            <div class="memory-grid" id="preferenceGrid"></div>
+          </section>
+
+          <section class="memory-section">
+            <h3>Recent Events</h3>
+            <div class="timeline" id="eventTimeline"></div>
+          </section>
+
+          <section class="memory-section">
+            <h3>Conflict Updates</h3>
+            <div class="timeline" id="conflictTimeline"></div>
+          </section>
+
+          <section class="memory-section">
+            <h3>本次回答参考了哪些长期记忆</h3>
+            <pre class="memory-preview" id="memoryPreview">暂无</pre>
+          </section>
+        </aside>
+      </main>
+
+      <section class="character-card-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <span class="panel-kicker">Character Card</span>
+            <h2>新建角色卡</h2>
+          </div>
+        </div>
+        <section class="card-surface">
+          <div class="character-editor-layout single-column">
+            <div class="character-form-area">
+              <div class="character-form-grid">
+                <div class="character-form-item">
+                  <label class="character-form-label" for="characterCardNameInput">角色命名</label>
+                  <input id="characterCardNameInput" type="text" placeholder="例如：嘴硬心软粤语大哥" />
+                </div>
+
+                <div class="character-form-item">
+                  <label class="character-form-label" for="characterCardVoiceSelect">音色选择</label>
+                  <select id="characterCardVoiceSelect"></select>
+                </div>
+
+                <div class="character-form-item character-form-item-full">
+                  <label class="character-form-label" for="characterCardDescriptionInput">角色描述</label>
+                  <textarea
+                    id="characterCardDescriptionInput"
+                    rows="4"
+                    placeholder="描述角色说话风格、性格、语气、互动方式。系统会自动在前面加入统一前置说明。"
+                  ></textarea>
+                </div>
+              </div>
+
+              <div class="memory-import-actions">
+                <button class="btn btn-primary" id="saveCharacterCardBtn" type="button">保存并生成角色卡</button>
+              </div>
+            </div>
+
+            <div class="character-preview-area">
+              <div class="panel-title-group preview-title">
+                <span class="panel-kicker">Preview</span>
+                <h3>卡片预览</h3>
+              </div>
+              <div class="character-card-visual" id="characterCardVisual">
+                <div class="card-visual-header">
+                  <div class="card-visual-avatar" id="cardVisualAvatar">
+                    <span id="cardVisualAvatarText">?</span>
+                  </div>
+                  <div class="card-visual-meta">
+                    <div class="card-visual-name" id="cardVisualName">未命名角色</div>
+                    <div class="card-visual-voice" id="cardVisualVoice">选择音色</div>
+                  </div>
+                </div>
+                <div class="card-visual-divider"></div>
+                <div class="card-visual-desc" id="cardVisualDesc">
+                  暂无描述
+                </div>
+                <div class="card-visual-footer">
+                  <span class="card-visual-badge">AI Character</span>
+                  <span class="card-visual-id" id="cardVisualId">ID: —</span>
+                </div>
+              </div>
+              <div class="preview-actions">
+                <button class="btn btn-secondary" id="downloadCardBtn" type="button">下载卡片图片</button>
+                <canvas id="cardCanvas" width="600" height="340" style="display:none;"></canvas>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </div>
+
+    <div class="fortune-modal-overlay" id="fortuneModalOverlay" aria-hidden="true">
+      <div class="fortune-modal" role="dialog" aria-modal="true" aria-label="今日运势详情">
+        <button class="fortune-modal-close" id="fortuneModalClose" type="button" aria-label="关闭">×</button>
+        <div class="fortune-modal-body" id="fortuneModalBody"></div>
+      </div>
+    </div>
+
+    <div class="fortune-modal-overlay" id="tarotModalOverlay" aria-hidden="true">
+      <div class="fortune-modal tarot-modal" role="dialog" aria-modal="true" aria-label="塔罗解读详情">
+        <button class="fortune-modal-close" id="tarotModalClose" type="button" aria-label="关闭">×</button>
+        <div class="fortune-modal-body" id="tarotModalBody"></div>
+      </div>
+    </div>
+
+    <script src="/app.js?v=20260921-journal"></script>
+  </body>
+</html>

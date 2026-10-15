@@ -1,0 +1,98 @@
+[
+  {
+    "name": "Discord",
+    "summary": "Community chat with text, voice channels, and rich bot ecosystem.",
+    "categories": ["social", "community", "messaging"],
+    "platforms": ["macos", "windows", "linux", "web", "ios", "android"],
+    "tags": ["community", "voice", "gaming", "groups"],
+    "homepage": "https://discord.com/"
+  },
+  {
+    "name": "Telegram",
+    "summary": "Cloud-based messaging app with channels, bots, and large group support.",
+    "categories": ["social", "messaging"],
+    "platforms": ["macos", "windows", "linux", "web", "ios", "android"],
+    "tags": ["chat", "channels", "bots", "groups"],
+    "homepage": "https://telegram.org/"
+  },
+  {
+    "name": "Signal",
+    "summary": "Privacy-first encrypted messaging with desktop and mobile apps.",
+    "categories": ["social", "messaging", "security"],
+    "platforms": ["macos", "windows", "linux", "ios", "android"],
+    "tags": ["encrypted", "private", "chat", "calls"],
+    "homepage": "https://signal.org/"
+  },
+  {
+    "name": "WhatsApp Desktop",
+    "summary": "Cross-platform messaging app for personal chats, groups, and calls.",
+    "categories": ["social", "messaging"],
+    "platforms": ["macos", "windows", "web", "ios", "android"],
+    "tags": ["chat", "group-chat", "calls", "personal"],
+    "homepage": "https://www.whatsapp.com/"
+  },
+  {
+    "name": "WeChat",
+    "summary": "All-in-one social messaging platform with chat, groups, and mini programs.",
+    "categories": ["social", "messaging", "super-app"],
+    "platforms": ["macos", "windows", "ios", "android"],
+    "tags": ["china", "chat", "moments", "mini-program"],
+    "homepage": "https://www.wechat.com/"
+  },
+  {
+    "name": "QQ",
+    "summary": "Popular social and messaging app with group chat and communities.",
+    "categories": ["social", "messaging"],
+    "platforms": ["windows", "ios", "android"],
+    "tags": ["china", "chat", "groups", "community"],
+    "homepage": "https://im.qq.com/"
+  },
+  {
+    "name": "LINE",
+    "summary": "Messaging and social platform with stickers, communities, and timeline.",
+    "categories": ["social", "messaging"],
+    "platforms": ["macos", "windows", "ios", "android"],
+    "tags": ["chat", "stickers", "asia", "timeline"],
+    "homepage": "https://line.me/"
+  },
+  {
+    "name": "Slack",
+    "summary": "Team communication platform with channels, huddles, and app integrations.",
+    "categories": ["social", "workplace", "messaging"],
+    "platforms": ["macos", "windows", "linux", "web", "ios", "android"],
+    "tags": ["team-chat", "channels", "collaboration", "work"],
+    "homepage": "https://slack.com/"
+  },
+  {
+    "name": "Microsoft Teams",
+    "summary": "Workplace chat and meetings with deep Microsoft 365 integration.",
+    "categories": ["social", "workplace", "meetings"],
+    "platforms": ["macos", "windows", "web", "ios", "android"],
+    "tags": ["enterprise", "video", "team-chat", "work"],
+    "homepage": "https://www.microsoft.com/microsoft-teams"
+  },
+  {
+    "name": "Reddit",
+    "summary": "Community discussion platform organized by interest-based subreddits.",
+    "categories": ["social", "community", "forum"],
+    "platforms": ["web", "ios", "android"],
+    "tags": ["communities", "threads", "news", "discussion"],
+    "homepage": "https://www.reddit.com/"
+  },
+  {
+    "name": "Mastodon",
+    "summary": "Federated open social network with decentralized communities.",
+    "categories": ["social", "microblog", "open-source"],
+    "platforms": ["web", "ios", "android"],
+    "tags": ["fediverse", "decentralized", "open-source", "posts"],
+    "homepage": "https://joinmastodon.org/"
+  },
+  {
+    "name": "X",
+    "summary": "Real-time social platform for short updates and public conversations.",
+    "categories": ["social", "microblog"],
+    "platforms": ["web", "ios", "android"],
+    "tags": ["posts", "trending", "news", "social-feed"],
+    "homepage": "https://x.com/"
+  }
+]
